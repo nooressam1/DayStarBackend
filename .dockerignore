@@ -1,0 +1,52 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.cproject
+.settings/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.development
+.env.production
+.env.local
+.env.*.local
+
+# Tests and coverage
+coverage/
+.nyc_output
+
+# Docker files
+[dD]ockerfile*
+docker-compose*.yml
+.dockerignore
