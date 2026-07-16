@@ -8,8 +8,10 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // Allow the Next.js frontend to call this API from the browser.
+  const frontendUrl = config.get<string>('FRONTEND_URL');
+
   app.enableCors({
-    origin: config.get<string>('FRONTEND_URL'),
+    origin: frontendUrl,
     credentials: true,
   });
 

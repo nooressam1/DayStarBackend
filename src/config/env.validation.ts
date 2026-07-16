@@ -12,5 +12,5 @@ export const envValidationSchema = Joi.object({
   SUPABASE_URL: Joi.string().uri().required(),
   SUPABASE_PUBLISHABLE_KEY: Joi.string().required(),
   SUPABASE_SECRET_KEY: Joi.string().required(),
-  FRONTEND_URL: Joi.string().uri().default('http://localhost:3000'),
+  FRONTEND_URL: Joi.string().default('http://localhost:3000'),
 });
