@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param, Patch } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, Patch, Query } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/cartDto';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
@@ -30,9 +30,15 @@ export class OrdersController {
   @Get('')
   async getAllOrders(
     @CurrentUser() user: any,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     const userId = user.sub;
-    return this.ordersService.getAllOrders(userId);
+    return this.ordersService.getAllOrders(
+      userId,
+      limit ? parseInt(limit, 10) : undefined,
+      offset ? parseInt(offset, 10) : undefined,
+    );
   }
   @Patch(':orderid/cancel')
   async cancelOrder(

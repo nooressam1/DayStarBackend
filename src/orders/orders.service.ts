@@ -309,9 +309,9 @@ export class OrdersService {
       items,
     };
   }
-  async getAllOrders(userId: string) {
+  async getAllOrders(userId: string, limit?: number, offset?: number) {
     const client = this.supabaseService.admin;
-    const { data: orders, error: orderError } = await client.from("orders").select(`
+    let query = client.from("orders").select(`
         id,
         user_id,
         order_number,
@@ -319,7 +319,17 @@ export class OrdersService {
         total,
         discount_amount,
         created_at
-      `).eq("user_id", userId).order('created_at', { ascending: false });
+      `)
+      .eq("user_id", userId)
+      .order('created_at', { ascending: false });
+
+    if (limit !== undefined) {
+      const from = offset ?? 0;
+      const to = from + limit - 1;
+      query = query.range(from, to);
+    }
+
+    const { data: orders, error: orderError } = await query;
     if (orderError) {
       throw new BadRequestException('could not retrieve orders');
     }
