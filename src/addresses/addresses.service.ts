@@ -21,31 +21,6 @@ export class AddressesService {
     return (data || []).filter(addr => addr.label !== '_deleted_');
   }
 
-  private parseStreet(streetStr: string) {
-    let street = streetStr;
-    let area = '';
-    let governorate = '';
-    let postalCode = '';
-
-    const newFormatMatch = streetStr.match(/^(.*?)\s*\(Area:\s*([^\)]*)\)\s*\(Gov:\s*([^\)]*)\)\s*\(Postal:\s*([^\)]*)\)$/);
-    const oldFormatMatch = streetStr.match(/^(.*?)\s*\(Area:\s*([^\)]*)\)$/);
-
-    if (newFormatMatch) {
-      street = newFormatMatch[1].trim();
-      area = newFormatMatch[2].trim();
-      governorate = newFormatMatch[3].trim();
-      postalCode = newFormatMatch[4].trim();
-    } else if (oldFormatMatch) {
-      street = oldFormatMatch[1].trim();
-      area = oldFormatMatch[2].trim();
-    }
-
-    return { street, area, governorate, postalCode };
-  }
-
-  private serializeStreet(street: string, area: string, governorate: string, postalCode: string) {
-    return `${street} (Area: ${area}) (Gov: ${governorate}) (Postal: ${postalCode || '-'})`;
-  }
 
   async createAddress(userId: string, dto: CreateAddressDto) {
     // Limit to max 6 saved addresses (excluding soft-deleted ones)
@@ -69,19 +44,24 @@ export class AddressesService {
       await this.clearDefaults(userId);
     }
 
-    const formattedStreet = this.serializeStreet(dto.street, dto.area, dto.governorate, dto.postalCode || '-');
+    const insertPayload: any = {
+      user_id: userId,
+      street: dto.street,
+      building_no: dto.building_no ?? dto.buildingNo ?? null,
+      floor_number: dto.floor_number ?? dto.floorNumber ?? null,
+      apartment_number: dto.apartment_number ?? dto.apartmentNumber ?? null,
+      area: dto.area ?? null,
+      city: dto.city,
+      governorate: dto.governorate ?? null,
+      postal_code: dto.postal_code ?? dto.postalCode ?? null,
+      country: dto.country || 'Egypt',
+      label: dto.label || 'Home',
+      is_default: !!dto.is_default,
+    };
 
     const { data, error } = await this.supabaseService.admin
       .from('addresses')
-      .insert({
-        user_id: userId,
-        street: formattedStreet,
-        building_no: dto.building_no,
-        city: dto.city,
-        country: dto.country || 'Egypt',
-        label: dto.label || null,
-        is_default: !!dto.is_default,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -97,27 +77,14 @@ export class AddressesService {
       await this.clearDefaults(userId);
     }
 
-    let finalStreet: string | undefined = undefined;
-    if (dto.street !== undefined || dto.area !== undefined || dto.governorate !== undefined || dto.postalCode !== undefined) {
-      const { data: existing } = await this.supabaseService.admin
-        .from('addresses')
-        .select('street')
-        .eq('id', addressId)
-        .eq('user_id', userId)
-        .single();
-      
-      const current = this.parseStreet(existing?.street || '');
-      const newStreet = dto.street !== undefined ? dto.street : current.street;
-      const newArea = dto.area !== undefined ? dto.area : current.area;
-      const newGov = dto.governorate !== undefined ? dto.governorate : current.governorate;
-      const newPostal = dto.postalCode !== undefined ? dto.postalCode : current.postalCode;
-      
-      finalStreet = this.serializeStreet(newStreet, newArea, newGov, newPostal);
-    }
-
     const updatePayload: any = {};
-    if (finalStreet !== undefined) updatePayload.street = finalStreet;
-    if (dto.building_no !== undefined) updatePayload.building_no = dto.building_no;
+    if (dto.street !== undefined) updatePayload.street = dto.street;
+    if (dto.building_no !== undefined || dto.buildingNo !== undefined) updatePayload.building_no = dto.building_no ?? dto.buildingNo;
+    if (dto.floor_number !== undefined || dto.floorNumber !== undefined) updatePayload.floor_number = dto.floor_number ?? dto.floorNumber;
+    if (dto.apartment_number !== undefined || dto.apartmentNumber !== undefined) updatePayload.apartment_number = dto.apartment_number ?? dto.apartmentNumber;
+    if (dto.area !== undefined) updatePayload.area = dto.area;
+    if (dto.governorate !== undefined) updatePayload.governorate = dto.governorate;
+    if (dto.postal_code !== undefined || dto.postalCode !== undefined) updatePayload.postal_code = dto.postal_code ?? dto.postalCode;
     if (dto.city !== undefined) updatePayload.city = dto.city;
     if (dto.country !== undefined) updatePayload.country = dto.country;
     if (dto.label !== undefined) updatePayload.label = dto.label;

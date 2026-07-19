@@ -15,11 +15,35 @@ export class UpdateAddressDto {
 
   @IsOptional()
   @IsString()
+  postal_code?: string;
+
+  @IsOptional()
+  @IsString()
   postalCode?: string;
 
   @IsOptional()
   @IsString()
   building_no?: string;
+
+  @IsOptional()
+  @IsString()
+  buildingNo?: string;
+
+  @IsOptional()
+  @IsString()
+  floor_number?: string;
+
+  @IsOptional()
+  @IsString()
+  floorNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  apartment_number?: string;
+
+  @IsOptional()
+  @IsString()
+  apartmentNumber?: string;
 
   @IsOptional()
   @IsString()

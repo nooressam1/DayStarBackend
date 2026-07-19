@@ -179,15 +179,19 @@ export class OrdersService {
   }
 
   private async createAddress(client: any, userId: string, details: { city: string; area: string; address: string; floorNumber?: string; apartmentNumber?: string; governorate?: string; postalCode?: string }) {
-    const formattedStreet = `${details.address} (Area: ${details.area}) (Gov: ${details.governorate || '-'}) (Postal: ${details.postalCode || '-'})`;
     const { data: insertedAddress, error: addressError } = await client
       .from('addresses')
       .insert({
         user_id: userId,
-        street: formattedStreet,
-        building_no: `Floor: ${details.floorNumber || '-'}, Apt: ${details.apartmentNumber || '-'}`,
+        street: details.address,
+        area: details.area,
+        governorate: details.governorate || null,
+        postal_code: details.postalCode || null,
+        floor_number: details.floorNumber || null,
+        apartment_number: details.apartmentNumber || null,
         city: details.city,
         country: 'Egypt',
+        label: 'Checkout Address',
       })
       .select()
       .single();

@@ -5,27 +5,51 @@ export class CreateAddressDto {
   @IsString()
   street: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  area: string;
+  area?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  governorate: string;
+  governorate?: string;
+
+  @IsOptional()
+  @IsString()
+  postal_code?: string;
 
   @IsOptional()
   @IsString()
   postalCode?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  building_no: string;
+  building_no?: string;
+
+  @IsOptional()
+  @IsString()
+  buildingNo?: string;
+
+  @IsOptional()
+  @IsString()
+  floor_number?: string;
+
+  @IsOptional()
+  @IsString()
+  floorNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  apartment_number?: string;
+
+  @IsOptional()
+  @IsString()
+  apartmentNumber?: string;
 
   @IsNotEmpty()
   @IsString()
   city: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   country?: string;
 
