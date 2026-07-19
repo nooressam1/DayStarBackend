@@ -37,12 +37,12 @@ export class OrdersService {
       }
 
       // 4. Create parent order header
-      const orderId = await this.createOrder(client, userId, finalAddressId, finalTotal, discountId, discountAmount, fullName, phoneNumber);
+      const createdOrder = await this.createOrder(client, userId, finalAddressId, finalTotal, discountId, discountAmount, fullName, phoneNumber);
+      const orderId = createdOrder.id;
+      const orderNumber = createdOrder.order_number || orderId.slice(0, 8).toUpperCase();
 
       // 5. Insert order line items
       await this.createOrderItems(client, orderId, orderItemsPayload);
-
-
 
       // Save phone number back to Supabase Auth metadata
       if (phoneNumber) {
@@ -69,6 +69,8 @@ export class OrdersService {
       // 7. Send order confirmation email asynchronously
       this.emailService.sendOrderConfirmation(email, {
         id: orderId,
+        order_number: orderNumber,
+        fullName: fullName || '',
         total: finalTotal,
         items: orderItemsPayload,
         email,
@@ -89,6 +91,7 @@ export class OrdersService {
       return {
         success: true,
         orderId,
+        orderNumber,
         total: finalTotal,
       };
     } catch (error) {
@@ -234,7 +237,7 @@ export class OrdersService {
       throw new BadRequestException('Could not create order.');
     }
 
-    return insertedOrder.id;
+    return insertedOrder;
   }
 
   private async createOrderItems(client: any, orderId: string, orderItemsPayload: any[]) {
@@ -310,6 +313,7 @@ export class OrdersService {
 
     return {
       ...orders,
+      order_number: orders.order_number,
       items,
     };
   }
@@ -322,6 +326,8 @@ export class OrdersService {
         status,
         total,
         discount_amount,
+        full_name,
+        phone_number,
         created_at
       `)
       .eq("user_id", userId)
@@ -337,12 +343,14 @@ export class OrdersService {
     if (orderError) {
       throw new BadRequestException('could not retrieve orders');
     }
-    return orders;
+    return (orders || []).map((o) => ({
+      ...o,
+      order_number: o.order_number || o.id.slice(0, 8).toUpperCase(),
+    }));
   }
   async cancelOrder(orderID: string, userID: string) {
     const client = this.supabaseService.admin;
     const { data: order, error: OrderError } = await client.from("orders").select('id, status, user_id').eq('id', orderID).single();
-    console.log("testingg", order);
     if (OrderError || !order) {
       throw new BadRequestException('Order Not found');
     }
@@ -365,4 +373,3 @@ export class OrdersService {
     }
   }
 }
-

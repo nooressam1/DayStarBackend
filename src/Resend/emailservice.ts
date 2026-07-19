@@ -24,9 +24,10 @@ export class EmailService {
     private buildOrderEmailHtml(order: any): string {
         const formatMoney = (amount: number) => `EGP ${(amount / 100).toFixed(2)}`;
         const orderNum = order.order_number;
+        const customerName = order.fullName || order.name || 'Valued Customer';
 
         // Loop over the items and build HTML table rows
-        const itemsRows = order.items.map((item: any) => `
+        const itemsRows = (order.items || []).map((item: any) => `
             <tr style="border-bottom: 1px solid #e8dfdc;">
                 <td style="padding: 12px 8px; text-align: left; font-family: sans-serif; font-size: 14px; color: #374151;">
                     <strong style="color: #78534a; font-family: serif; font-size: 15px;">${item.name}</strong>
@@ -68,7 +69,7 @@ export class EmailService {
                 <!-- Greeting Box -->
                 <tr>
                     <td style="padding: 40px 30px 20px 30px;">
-                        <h2 style="color: #78534a; font-family: serif; font-size: 22px; font-weight: 600; margin: 0 0 16px 0;">Thank You for Your Order!</h2>
+                        <h2 style="color: #78534a; font-family: serif; font-size: 22px; font-weight: 600; margin: 0 0 16px 0;">Thank You for Your Order, ${customerName}!</h2>
                         <p style="color: #686361; font-size: 15px; line-height: 1.6; margin: 0;">
                             We are processing your order and preparing your skincare routine selection. Below are the details of your order.
                         </p>
@@ -99,6 +100,7 @@ export class EmailService {
                                 <td style="padding: 12px; font-family: sans-serif; font-size: 13px; vertical-align: top; width: 50%;">
                                     <strong style="color: #78534a; font-family: serif; font-size: 14px; display: block; margin-bottom: 8px;">Customer Information</strong>
                                     <div style="font-size: 13px; color: #686361; line-height: 1.5;">
+                                        <strong>Name:</strong> ${customerName}<br>
                                         <strong>Email:</strong> ${order.email || 'N/A'}<br>
                                         <strong>Phone:</strong> ${order.phone || 'N/A'}
                                     </div>
