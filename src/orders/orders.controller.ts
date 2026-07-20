@@ -25,7 +25,8 @@ export class OrdersController {
     @Param('id') orderId: string,
   ) {
     const userId = user.sub;
-    return this.ordersService.getOrderById(userId, orderId);
+    const email = user.email;
+    return this.ordersService.getOrderById(userId, orderId, email);
   }
   @Get('')
   async getAllOrders(

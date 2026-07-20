@@ -258,7 +258,7 @@ export class OrdersService {
     }
   }
 
-  async getOrderById(userId: string, orderId: string) {
+  async getOrderById(userId: string, orderId: string, userEmail?: string) {
     const client = this.supabaseService.admin;
 
     const { data: orders, error: orderError } = await client
@@ -313,6 +313,7 @@ export class OrdersService {
 
     return {
       ...orders,
+      email: userEmail || null,
       order_number: orders.order_number,
       items,
     };
