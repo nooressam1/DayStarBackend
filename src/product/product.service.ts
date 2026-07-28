@@ -96,9 +96,9 @@ export class ProductService {
     }
     const { count, error: countError } = await countQuery;
 
-
     if (countError) {
-      throw new InternalServerErrorException('Failed to fetch products');
+      console.error("SUPABASE COUNT ERROR DETAILS:", countError);
+      throw new InternalServerErrorException(`Failed to fetch products: ${countError.message}`);
     }
 
     const total = count ?? 0;
@@ -127,7 +127,8 @@ export class ProductService {
       .range(from, to);
 
     if (error) {
-      throw new InternalServerErrorException('Failed to fetch products');
+      console.error("SUPABASE DATA ERROR DETAILS:", error);
+      throw new InternalServerErrorException(`Failed to fetch products: ${error.message}`);
     }
 
     return { items: data as Product[], total };
