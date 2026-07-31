@@ -18,7 +18,7 @@ export class RoutineAssemblerService {
         // group products into { cleanser: [...], treatment: [...], ... }
         const grouped: Record<string, any[]> = {};
         for (const product of products) {
-            const step = product.step_type;
+            const step = (product.step_type || '').toLowerCase();
             if (!grouped[step]) grouped[step] = [];
             grouped[step].push(product);
         }

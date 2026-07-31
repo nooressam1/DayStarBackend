@@ -178,7 +178,7 @@ export class ProductService {
   }
 
   async createProduct(dto: any): Promise<Product> {
-    const slug = dto.name
+    const slug = dto.slug || dto.name
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9\s-]/g, '')
@@ -214,8 +214,8 @@ export class ProductService {
         product_id: newProduct.id,
         size: v.size,
         sku: v.sku,
-        price: v.price,
         stock: v.stock,
+        created_at: new Date().toISOString(),
       }));
 
       const { error: variantError } = await this.supabaseService.admin
@@ -224,6 +224,7 @@ export class ProductService {
 
       if (variantError) {
         console.error('Failed to create variants:', variantError.message);
+        throw new InternalServerErrorException(`Failed to create variants: ${variantError.message}`);
       }
     }
 

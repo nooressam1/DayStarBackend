@@ -11,9 +11,6 @@ export class CreateVariantDto {
   sku: string;
 
   @IsNumber()
-  price: number;
-
-  @IsNumber()
   stock: number;
 }
 
@@ -25,6 +22,10 @@ export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
   description: string;
+
+  @IsOptional()
+  @IsString()
+  slug?: string;
 
   @IsOptional()
   @IsString()
