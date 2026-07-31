@@ -187,7 +187,7 @@ export class ProductService {
     const productPayload = {
       name: dto.name,
       description: dto.description,
-      category_id: dto.category_id ?? null,
+      category_id: dto.category_id,
       images: dto.images ?? [],
       price: dto.price,
       slug,
@@ -196,7 +196,7 @@ export class ProductService {
       discount_percentage: dto.discount_percentage ?? null,
       skin_type: dto.skin_type ?? [],
       concern: dto.concern ?? [],
-      step_type: dto.step_type ?? null,
+      step_type: dto.step_type,
     };
 
     const { data: newProduct, error: productError } = await this.supabaseService.admin
@@ -210,22 +210,29 @@ export class ProductService {
     }
 
     if (dto.variants && dto.variants.length > 0) {
-      const variantsToInsert = dto.variants.map((v: any) => ({
-        product_id: newProduct.id,
-        size: v.size,
-        sku: v.sku,
-        stock: v.stock,
-        created_at: new Date().toISOString(),
-      }));
+      const variantsToInsert = dto.variants.map((v: any) => {
+        const item: any = {
+          product_id: newProduct.id,
+          size: v.size,
+          sku: v.sku,
+          stock: v.stock,
+        };
+        return item;
+      });
 
-      const { error: variantError } = await this.supabaseService.admin
+      console.log('Inserting variants into Supabase:', JSON.stringify(variantsToInsert, null, 2));
+
+      const { data: insertedVariants, error: variantError } = await this.supabaseService.admin
         .from('variants')
-        .insert(variantsToInsert);
+        .insert(variantsToInsert)
+        .select('*');
 
       if (variantError) {
-        console.error('Failed to create variants:', variantError.message);
-        throw new InternalServerErrorException(`Failed to create variants: ${variantError.message}`);
+        console.error('Failed to create variants error details:', JSON.stringify(variantError, null, 2));
+        throw new InternalServerErrorException(`Failed to create variants: ${variantError.message || JSON.stringify(variantError)}`);
       }
+
+      console.log('Successfully created variants:', insertedVariants);
     }
 
     return newProduct as Product;
