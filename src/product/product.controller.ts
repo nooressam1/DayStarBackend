@@ -3,12 +3,19 @@ import { ProductService } from './product.service';
 import { Product, Variant, Review } from './product.interface';
 import { ListProductsDto } from './dto/list_products.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 
 @Controller('product')
 export class ProductController {
   constructor(private readonly productService: ProductService) { }
+
+  @Post()
+  async createProduct(@Body() dto: CreateProductDto): Promise<Product> {
+    return this.productService.createProduct(dto);
+  }
+
   @Get()
   async getAllProducts(
     @Query() query: ListProductsDto,

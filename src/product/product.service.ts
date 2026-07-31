@@ -177,5 +177,56 @@ export class ProductService {
     return data as Review;
   }
 
+  async createProduct(dto: any): Promise<Product> {
+    const slug = dto.name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-');
 
+    const productPayload = {
+      name: dto.name,
+      description: dto.description,
+      category_id: dto.category_id ?? null,
+      images: dto.images ?? [],
+      price: dto.price,
+      slug,
+      is_active: dto.is_active ?? true,
+      on_sale: dto.on_sale ?? false,
+      discount_percentage: dto.discount_percentage ?? null,
+      skin_type: dto.skin_type ?? [],
+      concern: dto.concern ?? [],
+      step_type: dto.step_type ?? null,
+    };
+
+    const { data: newProduct, error: productError } = await this.supabaseService.admin
+      .from('product')
+      .insert(productPayload)
+      .select('*')
+      .single();
+
+    if (productError || !newProduct) {
+      throw new InternalServerErrorException(`Failed to create product: ${productError?.message}`);
+    }
+
+    if (dto.variants && dto.variants.length > 0) {
+      const variantsToInsert = dto.variants.map((v: any) => ({
+        product_id: newProduct.id,
+        size: v.size,
+        sku: v.sku,
+        price: v.price,
+        stock: v.stock,
+      }));
+
+      const { error: variantError } = await this.supabaseService.admin
+        .from('variants')
+        .insert(variantsToInsert);
+
+      if (variantError) {
+        console.error('Failed to create variants:', variantError.message);
+      }
+    }
+
+    return newProduct as Product;
+  }
 }
