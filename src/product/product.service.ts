@@ -2,6 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Product, Variant, Review } from './product.interface';
@@ -178,9 +179,20 @@ export class ProductService {
   }
 
   async createProduct(dto: any): Promise<Product> {
-    const slug = dto.slug || dto.name
+    const trimmedName = dto.name.trim();
+
+    const { data: existingProduct } = await this.supabaseService.admin
+      .from('product')
+      .select('id, name')
+      .ilike('name', trimmedName)
+      .limit(1);
+
+    if (existingProduct && existingProduct.length > 0) {
+      throw new BadRequestException(`A product with the name "${trimmedName}" already exists.`);
+    }
+
+    const slug = dto.slug || trimmedName
       .toLowerCase()
-      .trim()
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-');
 
