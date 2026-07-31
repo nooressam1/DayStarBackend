@@ -81,57 +81,31 @@ export class ProductService {
       return { items: products as Product[], total };
     }
 
-    let countQuery = this.supabaseService.admin
+    let query = this.supabaseService.admin
       .from('product')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
-    if (params.discount) {
-      countQuery = countQuery.eq('discount_percentage', params.discount);
-    }
-    if (params.categoryId) {
-      countQuery = countQuery.eq('category_id', params.categoryId);
-    }
-    if (params.search) {
-      countQuery = countQuery.ilike('name', `%${params.search}%`);
-    }
-    const { count, error: countError } = await countQuery;
-
-    if (countError) {
-      console.error("SUPABASE COUNT ERROR DETAILS:", countError);
-      throw new InternalServerErrorException(`Failed to fetch products: ${countError.message}`);
-    }
-
-    const total = count ?? 0;
-
-    if (from >= total) {
-      return { items: [], total };
-    }
-
-    let dataQuery = this.supabaseService.admin
-      .from('product')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('is_active', true);
 
     if (params.categoryId) {
-      dataQuery = dataQuery.eq('category_id', params.categoryId);
+      query = query.eq('category_id', params.categoryId);
     }
     if (params.discount) {
-      dataQuery = dataQuery.eq('discount_percentage', params.discount);
+      query = query.eq('discount_percentage', params.discount);
     }
     if (params.search) {
-      dataQuery = dataQuery.ilike('name', `%${params.search}%`);
+      query = query.ilike('name', `%${params.search}%`);
     }
 
-    const { data, error } = await dataQuery
+    const { data, count, error } = await query
       .order('created_at', { ascending: false })
       .range(from, to);
 
     if (error) {
-      console.error("SUPABASE DATA ERROR DETAILS:", error);
-      throw new InternalServerErrorException(`Failed to fetch products: ${error.message}`);
+      console.error("SUPABASE ERROR DETAILS:", JSON.stringify(error, null, 2));
+      throw new InternalServerErrorException(`Failed to fetch products: ${error.message || JSON.stringify(error)}`);
     }
 
-    return { items: data as Product[], total };
+    return { items: (data || []) as Product[], total: count ?? (data?.length || 0) };
   }
   async getVariantbyProductId(productid: string): Promise<Variant[]> {
     const { data, error } = await this.supabaseService.admin.from('variants').select(`*`).eq(`product_id`, productid);
