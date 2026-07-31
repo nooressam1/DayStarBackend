@@ -196,12 +196,14 @@ export class ProductService {
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-');
 
+    const priceInCents = Math.round((Number(dto.price) || 0) * 100);
+
     const productPayload = {
       name: dto.name,
       description: dto.description,
       category_id: dto.category_id,
       images: dto.images ?? [],
-      price: dto.price,
+      price: priceInCents,
       slug,
       is_active: dto.is_active ?? true,
       on_sale: dto.on_sale ?? false,
@@ -240,6 +242,12 @@ export class ProductService {
         .select('*');
 
       if (variantError) {
+        // Rollback: Delete newly created product if variant creation fails
+        await this.supabaseService.admin
+          .from('product')
+          .delete()
+          .eq('id', newProduct.id);
+
         console.error('Failed to create variants error details:', JSON.stringify(variantError, null, 2));
         throw new InternalServerErrorException(`Failed to create variants: ${variantError.message || JSON.stringify(variantError)}`);
       }
