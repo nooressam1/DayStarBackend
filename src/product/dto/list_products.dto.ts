@@ -30,4 +30,12 @@ export class ListProductsDto {
   @Type(() => Number)
   @IsInt()
   discount?: number;
+
+  @IsOptional()
+  @IsString()
+  includeInactive?: string;
+
+  @IsOptional()
+  @IsString()
+  all?: string;
 }

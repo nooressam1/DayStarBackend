@@ -28,6 +28,13 @@ export class ProductService {
     return response.data as Product;
   }
 
+  private applyProductFilters(query: any, params: ListProductsDto) {
+    if (params.categoryId) query = query.eq('category_id', params.categoryId);
+    if (params.discount) query = query.eq('discount_percentage', params.discount);
+    if (params.search) query = query.ilike('name', `%${params.search}%`);
+    return query;
+  }
+
   async allProducts(
     params: ListProductsDto,
   ): Promise<{ items: Product[]; total: number }> {
@@ -49,64 +56,46 @@ export class ProductService {
       const paginatedItems = filtered.slice(from, from + limit);
       return { items: paginatedItems, total };
     }
-    if (params.collection === 'on-sale' || params.collection === 'sale') {
-      let countQuery = this.supabaseService.admin.from('product').select('*', { count: 'exact', head: true })
-        .eq('is_active', true).eq('on_sale', true);
-      if (params.discount) {
-        countQuery = countQuery.eq('discount_percentage', params.discount);
-      }
-      if (params.categoryId) {
-        countQuery = countQuery.eq('category_id', params.categoryId);
-      }
-      if (params.search) {
-        countQuery = countQuery.ilike('name', `%${params.search}%`);
-      }
-      const { count, error: countError } = await countQuery;
-      if (countError) throw new InternalServerErrorException('Failed to fetch count');
 
-      const total = count ?? 0;
-      if (from >= total) return { items: [], total }
-      let dataQuery = this.supabaseService.admin.from('product').select(`*, category:category_id ( id, name ), variants ( id, sku, stock )`).eq('is_active', true).eq('on_sale', true)
-      if (params.discount) {
-        dataQuery = dataQuery.eq('discount_percentage', params.discount);
-      }
-      if (params.categoryId) {
-        dataQuery = dataQuery.eq('category_id', params.categoryId)
-      }
-      if (params.search) {
-        dataQuery = dataQuery.ilike('name', `%${params.search}%`);
-      }
-      const { data: products, error: dataError } = await dataQuery.order('created_at', { ascending: false }).range(from, to);
+    const isSale = params.collection === 'on-sale' || params.collection === 'sale';
+    const includeInactive =
+      ['true', '1', true].includes(params.includeInactive as any) ||
+      ['true', '1', true].includes(params.all as any);
 
-      if (dataError) throw new InternalServerErrorException('Failed to fetch sale products');
-      return { items: products as Product[], total };
-    }
-
-    let query = this.supabaseService.admin
+    let countQuery = this.supabaseService.admin
       .from('product')
-      .select(`*,  category:category_id ( id, name ), variants ( id, sku, stock )`, { count: 'exact' })
-      .eq('is_active', true);
+      .select('*', { count: 'exact', head: true });
+    let dataQuery = this.supabaseService.admin
+      .from('product')
+      .select(`*, category:category_id ( id, name ), variants ( id, sku, stock )`);
 
-    if (params.categoryId) {
-      query = query.eq('category_id', params.categoryId);
+    if (isSale) {
+      countQuery = countQuery.eq('on_sale', true);
+      dataQuery = dataQuery.eq('on_sale', true);
     }
-    if (params.discount) {
-      query = query.eq('discount_percentage', params.discount);
-    }
-    if (params.search) {
-      query = query.ilike('name', `%${params.search}%`);
+    if (!includeInactive) {
+      countQuery = countQuery.eq('is_active', true);
+      dataQuery = dataQuery.eq('is_active', true);
     }
 
-    const { data, count, error } = await query
+    countQuery = this.applyProductFilters(countQuery, params);
+    dataQuery = this.applyProductFilters(dataQuery, params);
+
+    const { count, error: countError } = await countQuery;
+    if (countError) throw new InternalServerErrorException('Failed to fetch product count');
+
+    const total = count ?? 0;
+    if (from >= total) return { items: [], total };
+
+    const { data, error } = await dataQuery
       .order('created_at', { ascending: false })
       .range(from, to);
 
     if (error) {
-      console.error("SUPABASE ERROR DETAILS:", JSON.stringify(error, null, 2));
-      throw new InternalServerErrorException(`Failed to fetch products: ${error.message || JSON.stringify(error)}`);
+      throw new InternalServerErrorException(`Failed to fetch products: ${error.message}`);
     }
-    console.log("TEST", data);
-    return { items: (data || []) as Product[], total: count ?? (data?.length || 0) };
+
+    return { items: (data || []) as Product[], total };
   }
   async getVariantbyProductId(productid: string): Promise<Variant[]> {
     const { data, error } = await this.supabaseService.admin.from('variants').select(`*`).eq(`product_id`, productid);
