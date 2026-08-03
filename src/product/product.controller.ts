@@ -1,9 +1,10 @@
-import { Controller, Get, Param, Query, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Post, Patch, Body, UseGuards } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { Product, Variant, Review } from './product.interface';
 import { ListProductsDto } from './dto/list_products.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { BulkUpdateProductDto } from './dto/bulk-update-product.dto';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 
@@ -14,6 +15,11 @@ export class ProductController {
   @Post()
   async createProduct(@Body() dto: CreateProductDto): Promise<Product> {
     return this.productService.createProduct(dto);
+  }
+
+  @Patch('bulk')
+  async bulkUpdateProducts(@Body() dto: BulkUpdateProductDto): Promise<Product[]> {
+    return this.productService.bulkUpdateProducts(dto);
   }
 
   @Get()

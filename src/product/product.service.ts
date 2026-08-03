@@ -7,6 +7,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { Product, Variant, Review } from './product.interface';
 import { ListProductsDto } from './dto/list_products.dto';
+import { BulkUpdateProductDto } from './dto/bulk-update-product.dto';
 @Injectable()
 export class ProductService {
   constructor(private readonly supabaseService: SupabaseService) { }
@@ -245,5 +246,35 @@ export class ProductService {
     }
 
     return newProduct as Product;
+  }
+
+  async bulkUpdateProducts(dto: BulkUpdateProductDto): Promise<Product[]> {
+    const { ids, ...updates } = dto;
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('No product IDs provided for bulk update.');
+    }
+
+    const updateData: Record<string, any> = {};
+    Object.entries(updates).forEach(([key, val]) => {
+      if (val !== undefined) {
+        updateData[key] = val;
+      }
+    });
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('No update fields provided.');
+    }
+
+    const { data, error } = await this.supabaseService.admin
+      .from('product')
+      .update(updateData)
+      .in('id', ids)
+      .select();
+
+    if (error) {
+      throw new InternalServerErrorException(`Failed bulk update: ${error.message}`);
+    }
+
+    return data as Product[];
   }
 }
