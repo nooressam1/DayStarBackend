@@ -7,6 +7,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { BulkUpdateProductDto } from './dto/bulk-update-product.dto';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { UpdateProductDto } from './dto/updateProdtuctDto';
 
 @Controller('product')
 export class ProductController {
