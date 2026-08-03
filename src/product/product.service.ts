@@ -84,7 +84,7 @@ export class ProductService {
 
     let query = this.supabaseService.admin
       .from('product')
-      .select('*', { count: 'exact' })
+      .select(`*,  category:category_id ( id, name ), variants ( id, sku, stock )`, { count: 'exact' })
       .eq('is_active', true);
 
     if (params.categoryId) {
@@ -105,7 +105,7 @@ export class ProductService {
       console.error("SUPABASE ERROR DETAILS:", JSON.stringify(error, null, 2));
       throw new InternalServerErrorException(`Failed to fetch products: ${error.message || JSON.stringify(error)}`);
     }
-
+    console.log("TEST", data);
     return { items: (data || []) as Product[], total: count ?? (data?.length || 0) };
   }
   async getVariantbyProductId(productid: string): Promise<Variant[]> {
