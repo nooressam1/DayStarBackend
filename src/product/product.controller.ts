@@ -22,6 +22,14 @@ export class ProductController {
     return this.productService.bulkUpdateProducts(dto);
   }
 
+  @Patch(':id')
+  async updateProduct(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+  ): Promise<Product> {
+    return this.productService.updateProduct(id, dto);
+  }
+
   @Get()
   async getAllProducts(
     @Query() query: ListProductsDto,

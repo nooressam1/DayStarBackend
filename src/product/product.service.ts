@@ -8,6 +8,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { Product, Variant, Review } from './product.interface';
 import { ListProductsDto } from './dto/list_products.dto';
 import { BulkUpdateProductDto } from './dto/bulk-update-product.dto';
+import { UpdateProductDto } from './dto/updateProdtuctDto';
 @Injectable()
 export class ProductService {
   constructor(private readonly supabaseService: SupabaseService) { }
@@ -276,5 +277,77 @@ export class ProductService {
     }
 
     return data as Product[];
+  }
+  async updateProduct(id: string, dto: UpdateProductDto): Promise<Product> {
+    if (!id) {
+      throw new BadRequestException('No product ID provided for update.');
+    }
+
+    const { variants, ...updates } = dto;
+    const updateData: Record<string, any> = {};
+
+    Object.entries(updates).forEach(([key, val]) => {
+      if (val !== undefined) {
+        if (key === 'price' && typeof val === 'number') {
+          updateData.price = Math.round(val * 100);
+        } else if (key === 'name' && typeof val === 'string' && val.trim()) {
+          updateData.name = val.trim();
+          updateData.slug = val
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-');
+        } else {
+          updateData[key] = val;
+        }
+      }
+    });
+
+    if (Object.keys(updateData).length > 0) {
+      const { error: updateError } = await this.supabaseService.admin
+        .from('product')
+        .update(updateData)
+        .eq('id', id);
+
+      if (updateError) {
+        throw new InternalServerErrorException(`Failed to update product: ${updateError.message}`);
+      }
+    }
+
+    if (variants !== undefined && variants.length > 0) {
+      for (const variantDto of variants) {
+        const variantUpdateData: Record<string, any> = {};
+        if (variantDto.size !== undefined) variantUpdateData.size = variantDto.size;
+        if (variantDto.sku !== undefined) variantUpdateData.sku = variantDto.sku;
+        if (variantDto.stock !== undefined) variantUpdateData.stock = Number(variantDto.stock);
+
+        if (Object.keys(variantUpdateData).length > 0) {
+          let query = this.supabaseService.admin.from('variants').update(variantUpdateData);
+          if (variantDto.id) {
+            query = query.eq('id', variantDto.id);
+          } else if (variantDto.sku) {
+            query = query.eq('sku', variantDto.sku).eq('product_id', id);
+          } else {
+            continue;
+          }
+          const { error: vErr } = await query;
+          if (vErr) {
+            console.error(`Failed to update variant: ${vErr.message}`);
+          }
+        }
+      }
+    }
+
+    const { data: updatedProduct, error: fetchError } = await this.supabaseService.admin
+      .from('product')
+      .select('*, category:category_id ( id, name ), variants ( id, sku, stock, size )')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !updatedProduct) {
+      throw new NotFoundException(`Product with ID ${id} not found after update.`);
+    }
+
+    return updatedProduct as Product;
   }
 }
