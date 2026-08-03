@@ -13,21 +13,37 @@ import { UpdateProductDto } from './dto/updateProdtuctDto';
 export class ProductService {
   constructor(private readonly supabaseService: SupabaseService) { }
 
-  async findBySlug(slug: string): Promise<Product> {
-    // 1. Save the raw response into a single variable
-    const response = await this.supabaseService.admin
-      .from('product')
-      .select('*')
-      .eq('slug', slug)
-      .single();
+  async findBySlug(identifier: string): Promise<Product> {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(identifier);
 
-    // 2. Check the error property directly on that response object
-    if (response.error || !response.data) {
-      throw new NotFoundException(`Product with slug "${slug}" not found`);
+    let query = this.supabaseService.admin
+      .from('product')
+      .select('*, category:category_id ( id, name ), variants ( id, sku, stock, size )');
+
+    if (isUuid) {
+      query = query.eq('id', identifier);
+    } else {
+      query = query.eq('slug', identifier);
     }
 
-    // 3. Explicitly cast the final data asset right when you return it
-    return response.data as Product;
+    const { data, error } = await query.maybeSingle();
+
+    if (data) {
+      return data as Product;
+    }
+
+    // Fallback: search by id if searching by slug returned nothing
+    const { data: fallbackData } = await this.supabaseService.admin
+      .from('product')
+      .select('*, category:category_id ( id, name ), variants ( id, sku, stock, size )')
+      .eq('id', identifier)
+      .maybeSingle();
+
+    if (fallbackData) {
+      return fallbackData as Product;
+    }
+
+    throw new NotFoundException(`Product "${identifier}" not found`);
   }
 
   private applyProductFilters(query: any, params: ListProductsDto) {
