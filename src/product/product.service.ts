@@ -339,7 +339,8 @@ export class ProductService {
 
         if (Object.keys(variantUpdateData).length > 0) {
           let query = this.supabaseService.admin.from('variants').update(variantUpdateData);
-          if (variantDto.id) {
+          const isUuid = variantDto.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(variantDto.id);
+          if (isUuid) {
             query = query.eq('id', variantDto.id);
           } else if (variantDto.sku) {
             query = query.eq('sku', variantDto.sku).eq('product_id', id);

@@ -30,6 +30,10 @@ export class UpdateProductDto {
 
     @IsOptional()
     @IsString()
+    slug?: string;
+
+    @IsOptional()
+    @IsString()
     category_id?: string | null;
 
     @IsOptional()
