@@ -66,7 +66,7 @@ export class ProductService {
 
       const total = count ?? 0;
       if (from >= total) return { items: [], total }
-      let dataQuery = this.supabaseService.admin.from('product').select('*').eq('is_active', true).eq('on_sale', true)
+      let dataQuery = this.supabaseService.admin.from('product').select(`*, category:category_id ( id, name ), variants ( id, sku, stock )`).eq('is_active', true).eq('on_sale', true)
       if (params.discount) {
         dataQuery = dataQuery.eq('discount_percentage', params.discount);
       }
