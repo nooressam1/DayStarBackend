@@ -389,12 +389,24 @@ export class OrdersService {
       dataQuery = dataQuery.eq('status', params.status);
     }
 
-    // Apply search filter (search by order_number, full_name, phone_number, or id)
+    // Apply search filter (search by order_number, full_name, phone_number)
     if (params?.search) {
       const term = params.search.trim().replace(/^#/, '');
-      const searchFilter = `full_name.ilike.%${term}%,phone_number.ilike.%${term}%,order_number.ilike.%${term}%,id.ilike.%${term}%`;
-      countQuery = countQuery.or(searchFilter);
-      dataQuery = dataQuery.or(searchFilter);
+      if (term) {
+        const isNumeric = /^\d+$/.test(term);
+        const conditions = [
+          `full_name.ilike.%${term}%`,
+          `phone_number.ilike.%${term}%`,
+        ];
+
+        if (isNumeric) {
+          conditions.push(`order_number.eq.${parseInt(term, 10)}`);
+        }
+
+        const searchFilter = conditions.join(',');
+        countQuery = countQuery.or(searchFilter);
+        dataQuery = dataQuery.or(searchFilter);
+      }
     }
 
     const { count, error: countError } = await countQuery;
