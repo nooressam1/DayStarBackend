@@ -390,7 +390,7 @@ export class OrdersService {
 
     // Apply search filter (search by order_number or full_name)
     if (params?.search) {
-      const searchFilter = `full_name.ilike.%${search}%,phone_number::text.ilike.%${search}%,order_number::text.ilike.%${search}%`;
+      const searchFilter = `full_name.ilike.%${params.search}%,phone_number.ilike.%${params.search}%,order_number::text.ilike.%${params.search}%`;
       countQuery = countQuery.or(searchFilter);
       dataQuery = dataQuery.or(searchFilter);
     }
