@@ -376,7 +376,8 @@ export class OrdersService {
         order_number,
         status,
         total,
-
+        full_name,
+        phone_number,
         created_at
       `)
       .order('created_at', { ascending: false })
@@ -388,9 +389,10 @@ export class OrdersService {
       dataQuery = dataQuery.eq('status', params.status);
     }
 
-    // Apply search filter (search by order_number or full_name)
+    // Apply search filter (search by order_number, full_name, phone_number, or id)
     if (params?.search) {
-      const searchFilter = `full_name.ilike.%${params.search}%,phone_number.ilike.%${params.search}%,order_number::text.ilike.%${params.search}%`;
+      const term = params.search.trim().replace(/^#/, '');
+      const searchFilter = `full_name.ilike.%${term}%,phone_number.ilike.%${term}%,order_number.ilike.%${term}%,id.ilike.%${term}%`;
       countQuery = countQuery.or(searchFilter);
       dataQuery = dataQuery.or(searchFilter);
     }
