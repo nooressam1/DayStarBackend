@@ -396,11 +396,12 @@ export class OrdersService {
         const isNumeric = /^\d+$/.test(term);
         const conditions = [
           `full_name.ilike.%${term}%`,
-          `phone_number.ilike.%${term}%`,
         ];
 
         if (isNumeric) {
-          conditions.push(`order_number.eq.${parseInt(term, 10)}`);
+          const num = parseInt(term, 10);
+          conditions.push(`order_number.eq.${num}`);
+          conditions.push(`phone_number.eq.${num}`);
         }
 
         const searchFilter = conditions.join(',');
