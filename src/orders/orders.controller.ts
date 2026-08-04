@@ -33,6 +33,11 @@ export class OrdersController {
       search: search || undefined,
     });
   }
+
+  @Get('admin/:id')
+  async getAdminOrderById(@Param('id') orderId: string) {
+    return this.ordersService.getOrderByIdAdmin(orderId);
+  }
   @Get(':id')
   async getOrder(
     @CurrentUser() user: any,

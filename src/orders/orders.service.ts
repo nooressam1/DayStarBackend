@@ -427,6 +427,85 @@ export class OrdersService {
 
     return { items, total: count ?? 0 };
   }
+
+  async getOrderByIdAdmin(orderId: string) {
+    const client = this.supabaseService.admin;
+
+    const { data: order, error: orderError } = await client
+      .from('orders')
+      .select(`
+        id,
+        user_id,
+        order_number,
+        status,
+        total,
+        discount_amount,
+        full_name,
+        phone_number,
+        created_at,
+        addresses (
+          id,
+          street,
+          area,
+          floor_number,
+          apartment_number,
+          city,
+          country,
+          governorate,
+          postal_code
+        )
+      `)
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      throw new BadRequestException('Order not found.');
+    }
+
+    const { data: items, error: itemsError } = await client
+      .from('order_item')
+      .select(`
+        id,
+        quantity,
+        unit_price_snapshot,
+        variants (
+          id,
+          size,
+          product (
+            id,
+            name,
+            images
+          )
+        )
+      `)
+      .eq('order_id', orderId);
+
+    if (itemsError) {
+      throw new BadRequestException('Could not retrieve order items.');
+    }
+
+    const formattedItems = (items || []).map((item: any) => ({
+      id: item.id,
+      order_id: orderId,
+      variant_id: item.variants?.id,
+      quantity: item.quantity,
+      unit_price_snapshot: item.unit_price_snapshot,
+      product_name: item.variants?.product?.name || 'Product',
+      sku: item.variants?.id ? `VAR-${item.variants.id.slice(0, 6).toUpperCase()}` : 'N/A',
+      image: Array.isArray(item.variants?.product?.images) && item.variants?.product?.images.length > 0
+        ? item.variants?.product?.images[0]
+        : typeof item.variants?.product?.images === 'string'
+          ? item.variants?.product?.images
+          : undefined,
+    }));
+
+    return {
+      ...order,
+      order_number: order.order_number || order.id.slice(0, 8).toUpperCase(),
+      items: formattedItems,
+      address: order.addresses,
+    };
+  }
   async cancelOrder(orderID: string, userID: string) {
     const client = this.supabaseService.admin;
     const { data: order, error: OrderError } = await client.from("orders").select('id, status, user_id').eq('id', orderID).single();
