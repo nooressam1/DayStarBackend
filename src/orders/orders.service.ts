@@ -371,15 +371,14 @@ export class OrdersService {
     let dataQuery = client
       .from('orders')
       .select(`
-  id,
-  order_number,
-  status,
-  total,
-  full_name,
-  phone_number,
-  created_at
-`)
+        id,
+        user_id,
+        order_number,
+        status,
+        total,
 
+        created_at
+      `)
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -390,6 +389,11 @@ export class OrdersService {
     }
 
     // Apply search filter (search by order_number or full_name)
+    if (params?.search) {
+      const searchFilter = `full_name.ilike.%${search}%,phone_number::text.ilike.%${search}%,order_number::text.ilike.%${search}%`;
+      countQuery = countQuery.or(searchFilter);
+      dataQuery = dataQuery.or(searchFilter);
+    }
 
     const { count, error: countError } = await countQuery;
     if (countError) {
