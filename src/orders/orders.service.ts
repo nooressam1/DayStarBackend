@@ -349,6 +349,65 @@ export class OrdersService {
       order_number: o.order_number || o.id.slice(0, 8).toUpperCase(),
     }));
   }
+
+  async getAllOrdersAdmin(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+  }) {
+    const client = this.supabaseService.admin;
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 10;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    // Count query
+    let countQuery = client
+      .from('orders')
+      .select('id', { count: 'exact', head: true });
+
+    // Data query
+    let dataQuery = client
+      .from('orders')
+      .select(`
+  id,
+  order_number,
+  status,
+  total,
+  full_name,
+  phone_number,
+  created_at
+`)
+
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    // Apply status filter
+    if (params?.status) {
+      countQuery = countQuery.eq('status', params.status);
+      dataQuery = dataQuery.eq('status', params.status);
+    }
+
+    // Apply search filter (search by order_number or full_name)
+
+    const { count, error: countError } = await countQuery;
+    if (countError) {
+      throw new BadRequestException('Could not count orders.');
+    }
+
+    const { data: orders, error: orderError } = await dataQuery;
+    if (orderError) {
+      throw new BadRequestException('Could not retrieve orders.');
+    }
+
+    const items = (orders || []).map((o) => ({
+      ...o,
+      order_number: o.order_number || o.id.slice(0, 8).toUpperCase(),
+    }));
+
+    return { items, total: count ?? 0 };
+  }
   async cancelOrder(orderID: string, userID: string) {
     const client = this.supabaseService.admin;
     const { data: order, error: OrderError } = await client.from("orders").select('id, status, user_id').eq('id', orderID).single();

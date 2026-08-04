@@ -19,6 +19,20 @@ export class OrdersController {
     return this.ordersService.processCheckout(userId, email, createOrderDto);
   }
 
+  @Get('admin/all')
+  async getAllOrdersAdmin(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.ordersService.getAllOrdersAdmin({
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      status: status || undefined,
+      search: search || undefined,
+    });
+  }
   @Get(':id')
   async getOrder(
     @CurrentUser() user: any,
