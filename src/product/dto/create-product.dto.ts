@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsBoolean, ValidateNested, ArrayMinSize, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateVariantDto {
@@ -32,6 +32,8 @@ export class CreateProductDto {
   category_id?: string | null;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
   @IsString({ each: true })
   images: string[];
 

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsBoolean, ValidateNested, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateVariantDto {
@@ -38,6 +38,7 @@ export class UpdateProductDto {
 
     @IsOptional()
     @IsArray()
+    @ArrayMaxSize(3)
     @IsString({ each: true })
     images?: string[];
 
