@@ -462,6 +462,18 @@ export class OrdersService {
       throw new BadRequestException('Order not found.');
     }
 
+    let userEmail: string | undefined = undefined;
+    if (order.user_id) {
+      try {
+        const { data: userData } = await client.auth.admin.getUserById(order.user_id);
+        if (userData?.user?.email) {
+          userEmail = userData.user.email;
+        }
+      } catch (err) {
+        console.warn('Could not fetch user auth email:', err);
+      }
+    }
+
     const { data: items, error: itemsError } = await client
       .from('order_item')
       .select(`
@@ -502,6 +514,12 @@ export class OrdersService {
     return {
       ...order,
       order_number: order.order_number || order.id.slice(0, 8).toUpperCase(),
+      user: {
+        id: order.user_id,
+        full_name: order.full_name,
+        email: userEmail,
+      },
+      user_email: userEmail,
       items: formattedItems,
       address: order.addresses,
     };
