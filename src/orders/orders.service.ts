@@ -160,7 +160,7 @@ export class OrdersService {
     if (couponCode) {
       const { data: discountRecord, error: discountError } = await client
         .from('discount')
-        .select('id, type, value, is_active')
+        .select('id, type, value, is_active, start_date, end_date, min_requirement_type, min_requirement_value')
         .eq('code', couponCode)
         .eq('is_active', true)
         .single();
@@ -169,10 +169,31 @@ export class OrdersService {
         throw new BadRequestException('The promo code is invalid or has expired.');
       }
 
+      const now = new Date();
+      if (discountRecord.start_date && new Date(discountRecord.start_date) > now) {
+        throw new BadRequestException('This promo code is not active yet.');
+      }
+
+      if (discountRecord.end_date && new Date(discountRecord.end_date) < now) {
+        throw new BadRequestException('This promo code has expired.');
+      }
+
+      if (
+        discountRecord.min_requirement_type === 'amount' &&
+        discountRecord.min_requirement_value &&
+        subTotal < Number(discountRecord.min_requirement_value)
+      ) {
+        throw new BadRequestException(
+          `Minimum purchase amount of ${discountRecord.min_requirement_value} is required to use this promo code.`
+        );
+      }
+
       discountId = discountRecord.id;
 
-      if (discountRecord.type === 'percent') {
+      if (discountRecord.type === 'percent' || discountRecord.type === 'Percentage') {
         discountAmount = subTotal * (discountRecord.value / 100);
+      } else if (discountRecord.type === 'Free Shipping') {
+        discountAmount = 0;
       } else {
         discountAmount = discountRecord.value;
       }
