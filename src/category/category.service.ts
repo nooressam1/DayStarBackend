@@ -29,7 +29,6 @@ export class CategoryService {
                 name: dto.name,
                 slug: dto.slug,
                 photo: dto.photo || null,
-                status: dto.status || 'Active',
             };
 
             const { data, error } = await this.supabaseService.admin
