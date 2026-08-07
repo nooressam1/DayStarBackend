@@ -94,6 +94,19 @@ export class ProductService {
     if (!includeInactive) {
       countQuery = countQuery.eq('is_active', true);
       dataQuery = dataQuery.eq('is_active', true);
+
+      // Storefront mode: Only show products belonging to Active categories (or uncategorized products)
+      const { data: activeCats } = await this.supabaseService.admin
+        .from('category')
+        .select('id')
+        .or('status.eq.Active,status.is.null');
+
+      if (activeCats && activeCats.length > 0) {
+        const activeIds = activeCats.map((c) => c.id);
+        const inList = activeIds.join(',');
+        countQuery = countQuery.or(`category_id.in.(${inList}),category_id.is.null`);
+        dataQuery = dataQuery.or(`category_id.in.(${inList}),category_id.is.null`);
+      }
     }
 
     countQuery = this.applyProductFilters(countQuery, params);
