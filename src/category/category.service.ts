@@ -22,4 +22,26 @@ export class CategoryService {
             throw new InternalServerErrorException(error);
         }
     }
+
+    async createCategory(dto: any): Promise<category> {
+        try {
+            const payload = {
+                name: dto.name,
+                slug: dto.slug,
+                photo: dto.photo || null,
+                status: dto.status || 'Active',
+            };
+
+            const { data, error } = await this.supabaseService.admin
+                .from('category')
+                .insert(payload)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data as category;
+        } catch (error: any) {
+            throw new InternalServerErrorException(error?.message || 'Failed to create category');
+        }
+    }
 }
