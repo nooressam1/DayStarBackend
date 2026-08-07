@@ -5,10 +5,6 @@ export class CreateDiscountDto {
   @IsNotEmpty()
   code: string;
 
-  @IsOptional()
-  @IsString()
-  title?: string;
-
   @IsString()
   @IsNotEmpty()
   type: string;
@@ -30,9 +26,10 @@ export class CreateDiscountDto {
 
   @IsOptional()
   @IsString()
-  start_date?: string;
+  active_start_date?: string;
 
   @IsOptional()
   @IsString()
-  end_date?: string;
+  active_end_date?: string;
 }
+

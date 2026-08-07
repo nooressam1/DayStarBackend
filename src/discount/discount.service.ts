@@ -57,15 +57,14 @@ export class DiscountService {
 
     const payload = {
       code: formattedCode,
-      title: dto.title?.trim() || `${formattedCode} Discount`,
       type: dto.type,
       value: dto.value,
       created_at: new Date().toISOString(),
       is_active: dto.is_active ?? true,
       min_requirement_type: dto.min_requirement_type,
       min_requirement_value: dto.min_requirement_value,
-      start_date: dto.start_date,
-      end_date: dto.end_date,
+      active_start_date: dto.active_start_date,
+      active_end_date: dto.active_end_date,
     };
 
     const response = await this.supabaseService.admin

@@ -160,7 +160,7 @@ export class OrdersService {
     if (couponCode) {
       const { data: discountRecord, error: discountError } = await client
         .from('discount')
-        .select('id, type, value, is_active, start_date, end_date, min_requirement_type, min_requirement_value')
+        .select('id, type, value, is_active, active_start_date, active_end_date, min_requirement_type, min_requirement_value')
         .eq('code', couponCode)
         .eq('is_active', true)
         .single();
@@ -170,11 +170,11 @@ export class OrdersService {
       }
 
       const now = new Date();
-      if (discountRecord.start_date && new Date(discountRecord.start_date) > now) {
+      if (discountRecord.active_start_date && new Date(discountRecord.active_start_date) > now) {
         throw new BadRequestException('This promo code is not active yet.');
       }
 
-      if (discountRecord.end_date && new Date(discountRecord.end_date) < now) {
+      if (discountRecord.active_end_date && new Date(discountRecord.active_end_date) < now) {
         throw new BadRequestException('This promo code has expired.');
       }
 
