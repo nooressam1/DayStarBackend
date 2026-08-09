@@ -567,6 +567,49 @@ export class OrdersService {
       success: true,
       message: 'Order cancelled successfully',
       order: updateOrder,
+    };
+  }
+
+  async updateOrderStatusAdmin(orderId: string, status: string, reason?: string) {
+    const client = this.supabaseService.admin;
+    const { data: order, error: orderError } = await client
+      .from('orders')
+      .select('id, status')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      throw new BadRequestException('Order not found.');
     }
+
+    const payload: Record<string, any> = { status };
+    if (reason) {
+      payload.cancel_reason = reason;
+    }
+
+    const { data: updatedOrder, error: updateError } = await client
+      .from('orders')
+      .update(payload)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (updateError || !updatedOrder) {
+      throw new BadRequestException('Failed to update order status.');
+    }
+
+    return {
+      success: true,
+      message: `Order status updated to '${status}'`,
+      order: updatedOrder,
+    };
+  }
+
+  async cancelOrderAdmin(orderId: string, reason?: string) {
+    return this.updateOrderStatusAdmin(orderId, 'cancelled', reason);
+  }
+
+  async completePaymentAdmin(orderId: string) {
+    return this.updateOrderStatusAdmin(orderId, 'delivered');
   }
 }

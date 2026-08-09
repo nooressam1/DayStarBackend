@@ -60,6 +60,29 @@ export class OrdersController {
       offset ? parseInt(offset, 10) : undefined,
     );
   }
+  @Patch('admin/:id/status')
+  async updateOrderStatusAdmin(
+    @Param('id') orderId: string,
+    @Body() body: { status: string; reason?: string }
+  ) {
+    return this.ordersService.updateOrderStatusAdmin(orderId, body.status, body.reason);
+  }
+
+  @Patch('admin/:id/cancel')
+  async cancelOrderAdmin(
+    @Param('id') orderId: string,
+    @Body() body?: { reason?: string }
+  ) {
+    return this.ordersService.cancelOrderAdmin(orderId, body?.reason);
+  }
+
+  @Patch('admin/:id/complete-payment')
+  async completePaymentAdmin(
+    @Param('id') orderId: string
+  ) {
+    return this.ordersService.completePaymentAdmin(orderId);
+  }
+
   @Patch(':orderid/cancel')
   async cancelOrder(
     @CurrentUser() user: any,
