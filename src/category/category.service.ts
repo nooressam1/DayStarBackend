@@ -4,6 +4,8 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { category } from './category.interface';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoryService {
@@ -23,13 +25,14 @@ export class CategoryService {
         }
     }
 
-    async createCategory(dto: any): Promise<category> {
+    async createCategory(dto: CreateCategoryDto): Promise<category> {
         try {
-            const payload = {
+            const payload: any = {
                 name: dto.name,
                 slug: dto.slug,
                 photo: dto.photo || null,
             };
+            if (dto.status) payload.status = dto.status;
 
             const { data, error } = await this.supabaseService.admin
                 .from('category')
@@ -41,6 +44,42 @@ export class CategoryService {
             return data as category;
         } catch (error: any) {
             throw new InternalServerErrorException(error?.message || 'Failed to create category');
+        }
+    }
+
+    async updateCategory(id: string, dto: UpdateCategoryDto): Promise<category> {
+        try {
+            const payload: Record<string, any> = {};
+            if (dto.name !== undefined) payload.name = dto.name;
+            if (dto.slug !== undefined) payload.slug = dto.slug;
+            if (dto.photo !== undefined) payload.photo = dto.photo;
+            if (dto.status !== undefined) payload.status = dto.status;
+
+            const { data, error } = await this.supabaseService.admin
+                .from('category')
+                .update(payload)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data as category;
+        } catch (error: any) {
+            throw new InternalServerErrorException(error?.message || 'Failed to update category');
+        }
+    }
+
+    async deleteCategory(id: string): Promise<{ success: boolean }> {
+        try {
+            const { error } = await this.supabaseService.admin
+                .from('category')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            return { success: true };
+        } catch (error: any) {
+            throw new InternalServerErrorException(error?.message || 'Failed to delete category');
         }
     }
 }
