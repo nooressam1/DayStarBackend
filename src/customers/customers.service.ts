@@ -1,7 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
-export interface CustomerQueryDto {
+export class CustomerQueryDto {
   page?: string;
   limit?: string;
   search?: string;
