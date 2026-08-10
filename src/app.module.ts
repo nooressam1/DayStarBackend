@@ -14,6 +14,7 @@ import { CategoryService } from './category/category.service';
 import { OrdersModule } from './orders/orders.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { QuizModule } from './routineassembler/QuizModule';
+import { CustomersModule } from './customers/customers.module';
 import { ContactSubmissionsController } from './contact_submissions/contact_submissions.controller';
 import { ContactSubmissionsService } from './contact_submissions/contact_submissions.service';
 
@@ -29,7 +30,8 @@ import { ContactSubmissionsService } from './contact_submissions/contact_submiss
     HealthModule,
     OrdersModule,
     AddressesModule,
-    QuizModule
+    QuizModule,
+    CustomersModule,
   ],
   controllers: [ProductController, discountController, categoryController, ContactSubmissionsController],
   providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService],
