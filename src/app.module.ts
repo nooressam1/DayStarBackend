@@ -19,6 +19,7 @@ import { CustomersController } from './customers/customers.controller';
 import { CustomersService } from './customers/customers.service';
 import { ContactSubmissionsController } from './contact_submissions/contact_submissions.controller';
 import { ContactSubmissionsService } from './contact_submissions/contact_submissions.service';
+import { CartModule } from './cart/cart.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ContactSubmissionsService } from './contact_submissions/contact_submiss
     AddressesModule,
     QuizModule,
     CustomersModule,
+    CartModule,
   ],
   controllers: [ProductController, discountController, categoryController, ContactSubmissionsController, CustomersController],
   providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService, CustomersService],
