@@ -44,7 +44,7 @@ export class CartService {
     return newCart.id;
   }
 
-  // 2. Fetch User Cart Items
+  // 2. Fetch User Cart Items with Accurate Variant & Product Resolution
   async getUserCart(userId: string): Promise<ServerCartItem[]> {
     const cartId = await this.getOrCreateCartId(userId);
 
@@ -61,21 +61,53 @@ export class CartService {
       return [];
     }
 
-    // Fetch products to map item details
+    // Fetch all variants and products to accurately resolve variant details
+    const { data: variants } = await this.supabaseService.admin
+      .from('variants')
+      .select('*, product:product_id ( id, name, price, images )');
+
     const { data: products } = await this.supabaseService.admin
       .from('product')
       .select('id, name, price, images');
 
     const result: ServerCartItem[] = cartItems.map((item) => {
-      const matchedProduct = (products || []).find((p) => p.id === item.variant_id) || (products || [])[0];
+      // 1. Match by variant_id in variants table
+      const matchedVariant = (variants || []).find((v) => v.id === item.variant_id);
+      if (matchedVariant) {
+        const prod = matchedVariant.product || (products || []).find((p) => p.id === matchedVariant.product_id);
+        return {
+          variant_id: matchedVariant.id,
+          product_id: matchedVariant.product_id,
+          name: prod?.name || 'Skincare Essential',
+          price: prod?.price || 0,
+          size: matchedVariant.size || 'Standard',
+          photo: prod?.images?.[0] || '',
+          quantity: item.quantity,
+        };
+      }
 
+      // 2. Match by variant_id equaling product_id directly
+      const matchedProduct = (products || []).find((p) => p.id === item.variant_id);
+      if (matchedProduct) {
+        return {
+          variant_id: matchedProduct.id,
+          product_id: matchedProduct.id,
+          name: matchedProduct.name,
+          price: matchedProduct.price,
+          size: 'Standard',
+          photo: matchedProduct.images?.[0] || '',
+          quantity: item.quantity,
+        };
+      }
+
+      // 3. Fallback for custom or unlinked item (never replace with arbitrary products[0])
       return {
         variant_id: item.variant_id,
-        product_id: matchedProduct?.id || item.variant_id,
-        name: matchedProduct?.name || 'Skincare Essential',
-        price: matchedProduct?.price || 0,
+        product_id: item.variant_id,
+        name: 'Skincare Essential',
+        price: 0,
         size: 'Standard',
-        photo: matchedProduct?.images?.[0] || '',
+        photo: '',
         quantity: item.quantity,
       };
     });
