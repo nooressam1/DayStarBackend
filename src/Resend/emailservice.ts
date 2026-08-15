@@ -30,18 +30,23 @@ export class EmailService {
   }
 
   /**
-   * Dispatches an on-sale alert email to a subscriber who favorited the product
+   * Dispatches an on-sale alert email to a subscriber who favorited one or more products
    */
-  async sendSaleAlert(to: string, product: any, customerName = 'Valued Customer'): Promise<boolean> {
-    const productName = product.name || product.product_name || 'Your Favorited Product';
+  async sendSaleAlert(to: string, products: any | any[], customerName = 'Valued Customer'): Promise<boolean> {
+    const items: any[] = Array.isArray(products) ? products : [products];
+    const isMultiple = items.length > 1;
+    const subject = isMultiple
+      ? `🔥 Good news! ${items.length} items from your Favorites are on Sale!`
+      : `🔥 Good news! "${items[0]?.name || items[0]?.product_name || 'An item'}" is on Sale!`;
+
     try {
       await this.resend.emails.send({
         from: this.fromAddress,
         to,
-        subject: `🔥 Good news! "${productName}" is on Sale!`,
-        html: buildSaleAlertHtml(product, customerName),
+        subject,
+        html: buildSaleAlertHtml(items, customerName),
       });
-      this.logger.log(`Sale alert email successfully dispatched to: ${to} for product "${productName}"`);
+      this.logger.log(`Sale alert email (${items.length} item(s)) successfully dispatched to: ${to}`);
       return true;
     } catch (error: any) {
       this.logger.error(`Failed to send sale alert email to ${to}: ${error.message}`, error.stack);

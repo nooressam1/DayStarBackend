@@ -38,7 +38,7 @@ export class JobsService {
       .select('*')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
-      .limit(5);
+      .limit(20);
 
     if (error) {
       this.logger.error(`Failed to fetch pending jobs: ${error.message}`);
@@ -51,107 +51,114 @@ export class JobsService {
 
     this.logger.log(`[Job Processor] Found ${pendingJobs.length} pending job(s) to process.`);
 
-    // 2. Process each job
-    for (const job of pendingJobs) {
-      await this.processJob(job);
+    // 2. Separate sale_notification jobs to merge them by user
+    const saleJobs = pendingJobs.filter((j) => j.type === 'sale_notification');
+    const otherJobs = pendingJobs.filter((j) => j.type !== 'sale_notification');
+
+    if (saleJobs.length > 0) {
+      await this.processBatchSaleNotificationJobs(saleJobs);
+    }
+
+    for (const job of otherJobs) {
+      await this.processGenericJob(job);
     }
   }
 
-  private async processJob(job: any) {
-    const jobId = job.id;
-    this.logger.log(`[Job ${jobId}] Starting processing for job type: "${job.type}"`);
+  /**
+   * Aggregates multiple sale notification jobs and merges on-sale products
+   * into a single email per recipient user.
+   */
+  private async processBatchSaleNotificationJobs(jobs: any[]) {
+    const jobIds = jobs.map((j) => j.id);
 
-    // Step A: Mark status as 'processing'
+    // Step A: Mark all batch jobs as 'processing'
     await this.supabaseService.admin
       .from('jobs')
       .update({
         status: 'processing',
-        attempts: (job.attempts || 0) + 1,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', jobId);
+      .in('id', jobIds);
 
     try {
-      // Step B: Dispatch based on job type
-      if (job.type === 'sale_notification') {
-        await this.handleSaleNotificationJob(job);
-      } else {
-        this.logger.warn(`[Job ${jobId}] Unknown job type: "${job.type}"`);
+      // Step B: Build a map of product_id -> product payload
+      const productMap = new Map<string, any>();
+      const productIds: string[] = [];
+
+      for (const job of jobs) {
+        const payload = job.payload || {};
+        if (payload.product_id) {
+          productMap.set(payload.product_id, payload);
+          if (!productIds.includes(payload.product_id)) {
+            productIds.push(payload.product_id);
+          }
+        }
       }
 
-      // Step C: Mark status as 'completed'
-      await this.supabaseService.admin
-        .from('jobs')
-        .update({
-          status: 'completed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
+      if (productIds.length === 0) {
+        await this.supabaseService.admin
+          .from('jobs')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .in('id', jobIds);
+        return;
+      }
 
-      this.logger.log(`[Job ${jobId}] Successfully completed job "${job.type}".`);
-    } catch (err: any) {
-      this.logger.error(`[Job ${jobId}] Failed to process job: ${err.message}`, err.stack);
+      // Step C: Query all subscribers who favorited any of these products
+      const { data: matchingFavorites, error: favError } = await this.supabaseService.admin
+        .from('favorites')
+        .select('id, user_id, product_id, notify_on_sale, last_notified_at')
+        .in('product_id', productIds)
+        .eq('notify_on_sale', true);
 
-      // Mark status as 'failed' with error message
-      await this.supabaseService.admin
-        .from('jobs')
-        .update({
-          status: 'failed',
-          error_message: err.message || 'Unknown processing error',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
-    }
-  }
+      if (favError) {
+        throw new Error(`Failed to query favorites: ${favError.message}`);
+      }
 
-  private async handleSaleNotificationJob(job: any) {
-    const payload = job.payload || {};
-    const productId = payload.product_id;
-    const productName = payload.product_name || 'Skincare Product';
+      if (!matchingFavorites || matchingFavorites.length === 0) {
+        this.logger.log(`[Batch Processor] No subscribers found for ${productIds.length} on-sale product(s).`);
+        await this.supabaseService.admin
+          .from('jobs')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .in('id', jobIds);
+        return;
+      }
 
-    if (!productId) {
-      throw new Error('Missing product_id in job payload');
-    }
+      // Step D: Group on-sale products by user_id
+      const userProductsMap = new Map<string, { favIds: string[]; products: any[] }>();
 
-    this.logger.log(
-      `[Job ${job.id}] Finding subscribers for on-sale product "${productName}" (${productId})...`
-    );
+      for (const fav of matchingFavorites) {
+        const prod = productMap.get(fav.product_id);
+        if (!prod) continue;
 
-    // 1. Query matching favorites using indexed columns
-    const { data: matchingFavorites, error: favError } = await this.supabaseService.admin
-      .from('favorites')
-      .select('id, user_id, notify_on_sale, last_notified_at')
-      .eq('product_id', productId)
-      .eq('notify_on_sale', true);
+        if (!userProductsMap.has(fav.user_id)) {
+          userProductsMap.set(fav.user_id, { favIds: [], products: [] });
+        }
 
-    if (favError) {
-      throw new Error(`Failed to query favorites: ${favError.message}`);
-    }
+        const userEntry = userProductsMap.get(fav.user_id)!;
+        userEntry.favIds.push(fav.id);
 
-    if (!matchingFavorites || matchingFavorites.length === 0) {
-      this.logger.log(`[Job ${job.id}] No users have favorited "${productName}" with sale notifications enabled.`);
-      return;
-    }
+        if (!userEntry.products.some((p) => p.product_id === prod.product_id)) {
+          userEntry.products.push(prod);
+        }
+      }
 
-    this.logger.log(`[Job ${job.id}] Found ${matchingFavorites.length} user(s) to notify.`);
+      this.logger.log(
+        `[Batch Processor] Bundled ${productIds.length} on-sale product(s) across ${userProductsMap.size} user recipient(s).`
+      );
 
-    // 2. Process in batches of 5 to respect Resend rate limits
-    const BATCH_SIZE = 5;
-    const PAUSE_MS = 600; // 600ms delay between emails
+      // Step E: Dispatch 1 merged email per user
+      const PAUSE_MS = 600; // Rate-limiting delay
+      const allProcessedFavIds: string[] = [];
+      let sentCount = 0;
+      let failCount = 0;
 
-    let sentCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < matchingFavorites.length; i += BATCH_SIZE) {
-      const batch = matchingFavorites.slice(i, i + BATCH_SIZE);
-
-      for (const fav of batch) {
+      for (const [userId, { favIds, products }] of userProductsMap.entries()) {
         try {
-          // Fetch user profile/email from Supabase Auth
-          const { data: userData, error: userError } = await this.supabaseService.admin.auth.admin.getUserById(fav.user_id);
+          const { data: userData, error: userError } =
+            await this.supabaseService.admin.auth.admin.getUserById(userId);
 
           if (userError || !userData?.user?.email) {
-            this.logger.warn(`Could not resolve email for user ID ${fav.user_id}: ${userError?.message || 'No email'}`);
+            this.logger.warn(`Could not resolve email for user ID ${userId}`);
             failCount++;
             continue;
           }
@@ -162,27 +169,76 @@ export class JobsService {
             userData.user.user_metadata?.name ||
             email.split('@')[0];
 
-          // Send the branded sale email via Resend
-          await this.emailService.sendSaleAlert(email, payload, customerName);
+          // Send 1 single merged email containing all favorited on-sale products
+          await this.emailService.sendSaleAlert(email, products, customerName);
           sentCount++;
-
-          // Update last_notified_at on this favorite row so we have a record
-          await this.supabaseService.admin
-            .from('favorites')
-            .update({ last_notified_at: new Date().toISOString() })
-            .eq('id', fav.id);
+          allProcessedFavIds.push(...favIds);
 
           // Rate-limiting delay
           await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
         } catch (emailErr: any) {
-          this.logger.error(`Failed to send sale alert for user ${fav.user_id}: ${emailErr.message}`);
+          this.logger.error(`Failed to send merged sale alert for user ${userId}: ${emailErr.message}`);
           failCount++;
         }
       }
-    }
 
-    this.logger.log(
-      `[Job ${job.id}] Sale notification dispatch finished. Sent: ${sentCount}, Failed: ${failCount}`
-    );
+      // Step F: Update last_notified_at on all notified favorites rows
+      if (allProcessedFavIds.length > 0) {
+        await this.supabaseService.admin
+          .from('favorites')
+          .update({ last_notified_at: new Date().toISOString() })
+          .in('id', allProcessedFavIds);
+      }
+
+      // Step G: Mark all jobs as completed
+      await this.supabaseService.admin
+        .from('jobs')
+        .update({
+          status: 'completed',
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', jobIds);
+
+      this.logger.log(
+        `[Batch Processor] Completed ${jobs.length} sale_notification job(s). Emails sent: ${sentCount}, Failed: ${failCount}`
+      );
+    } catch (err: any) {
+      this.logger.error(`[Batch Processor] Failed processing batch sale jobs: ${err.message}`, err.stack);
+      await this.supabaseService.admin
+        .from('jobs')
+        .update({
+          status: 'failed',
+          error_message: err.message || 'Batch processing error',
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', jobIds);
+    }
+  }
+
+  private async processGenericJob(job: any) {
+    const jobId = job.id;
+    this.logger.log(`[Job ${jobId}] Starting generic job processing for type: "${job.type}"`);
+
+    await this.supabaseService.admin
+      .from('jobs')
+      .update({
+        status: 'processing',
+        attempts: (job.attempts || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', jobId);
+
+    try {
+      this.logger.log(`[Job ${jobId}] Generic job completed.`);
+      await this.supabaseService.admin
+        .from('jobs')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', jobId);
+    } catch (err: any) {
+      await this.supabaseService.admin
+        .from('jobs')
+        .update({ status: 'failed', error_message: err.message, updated_at: new Date().toISOString() })
+        .eq('id', jobId);
+    }
   }
 }
