@@ -13,6 +13,37 @@ import { UpdateProductDto } from './dto/updateProdtuctDto';
 export class ProductService {
   constructor(private readonly supabaseService: SupabaseService) { }
 
+  async updateProductRatingStats(productId: string): Promise<{ rating: number; reviews_count: number }> {
+    const { data: reviews, error } = await this.supabaseService.admin
+      .from('review')
+      .select('rating')
+      .eq('product_id', productId);
+
+    if (error) {
+      console.error(`Failed to fetch reviews to update stats for product ${productId}:`, error);
+      return { rating: 0, reviews_count: 0 };
+    }
+
+    const reviewsCount = reviews?.length || 0;
+    const avgRating = reviewsCount > 0
+      ? Math.round((reviews!.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / reviewsCount) * 10) / 10
+      : 0;
+
+    const { error: updateError } = await this.supabaseService.admin
+      .from('product')
+      .update({
+        rating: avgRating,
+        reviews_count: reviewsCount,
+      })
+      .eq('id', productId);
+
+    if (updateError) {
+      console.error(`Failed to update rating stats for product ${productId}:`, updateError);
+    }
+
+    return { rating: avgRating, reviews_count: reviewsCount };
+  }
+
   async findBySlug(identifier: string): Promise<Product> {
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(identifier);
 
@@ -29,7 +60,10 @@ export class ProductService {
     const { data, error } = await query.maybeSingle();
 
     if (data) {
-      return data as Product;
+      const product = data as Product;
+      product.rating = Number(product.rating) || 0;
+      product.reviews_count = Number(product.reviews_count) || 0;
+      return product;
     }
 
     // Fallback: search by id if searching by slug returned nothing
@@ -40,7 +74,10 @@ export class ProductService {
       .maybeSingle();
 
     if (fallbackData) {
-      return fallbackData as Product;
+      const product = fallbackData as Product;
+      product.rating = Number(product.rating) || 0;
+      product.reviews_count = Number(product.reviews_count) || 0;
+      return product;
     }
 
     throw new NotFoundException(`Product "${identifier}" not found`);
@@ -126,7 +163,13 @@ export class ProductService {
       throw new InternalServerErrorException(`Failed to fetch products: ${error.message}`);
     }
 
-    return { items: (data || []) as Product[], total };
+    const items = (data || []).map((p: any) => ({
+      ...p,
+      rating: Number(p.rating) || 0,
+      reviews_count: Number(p.reviews_count) || 0,
+    })) as Product[];
+
+    return { items, total };
   }
   async getVariantbyProductId(productid: string): Promise<Variant[]> {
     const { data, error } = await this.supabaseService.admin.from('variants').select(`*`).eq(`product_id`, productid);
@@ -146,9 +189,17 @@ export class ProductService {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(limit);
-      return (newest ?? []) as Product[];
+      return (newest ?? []).map((p: any) => ({
+        ...p,
+        rating: Number(p.rating) || 0,
+        reviews_count: Number(p.reviews_count) || 0,
+      })) as Product[];
     }
-    return data as Product[];
+    return (data as Product[]).map((p: any) => ({
+      ...p,
+      rating: Number(p.rating) || 0,
+      reviews_count: Number(p.reviews_count) || 0,
+    }));
   }
 
   async getReviews(productId: string): Promise<Review[]> {
@@ -194,6 +245,9 @@ export class ProductService {
     if (error) {
       throw new InternalServerErrorException(`Failed to create review: ${error.message}`);
     }
+
+    // Recalculate and update rating & reviews_count on the product table
+    await this.updateProductRatingStats(productId);
 
     return data as Review;
   }

@@ -13,6 +13,8 @@ export interface Product {
   concern: string[];
   step_type: string;
   discount_percentage?: number | null;
+  rating?: number;
+  reviews_count?: number;
 }
 
 export interface Variant {

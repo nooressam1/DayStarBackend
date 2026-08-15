@@ -126,6 +126,14 @@ export class OrdersService {
     const orderItemsPayload: { variant_id: string; quantity: number; unit_price_snapshot: number; name: string; size: string }[] = [];
 
     for (const item of items) {
+      if (!item.quantity || item.quantity < 1) {
+        throw new BadRequestException('Invalid quantity specified for cart item.');
+      }
+
+      if (item.quantity > 5) {
+        throw new BadRequestException('Maximum purchase limit is 5 units per product item.');
+      }
+
       const dbVariant = fetchedVariants.find((v) => v.id === item.variant_id);
 
       if (!dbVariant) {

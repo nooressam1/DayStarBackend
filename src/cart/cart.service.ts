@@ -118,11 +118,12 @@ export class CartService {
   // 3. Upsert Single Cart Item
   async upsertItem(userId: string, variantId: string, quantity: number) {
     const cartId = await this.getOrCreateCartId(userId);
+    const cappedQuantity = Math.min(5, Math.max(1, quantity));
 
     const { data, error } = await this.supabaseService.admin
       .from('cart_items')
       .upsert(
-        { cart_id: cartId, variant_id: variantId, quantity },
+        { cart_id: cartId, variant_id: variantId, quantity: cappedQuantity },
         { onConflict: 'cart_id,variant_id' }
       )
       .select();
@@ -182,7 +183,8 @@ export class CartService {
 
     for (const item of guestItems) {
       const existing = (existingItems || []).find((e) => e.variant_id === item.variant_id);
-      const newQty = existing ? existing.quantity + item.quantity : item.quantity;
+      const computedQty = existing ? existing.quantity + item.quantity : item.quantity;
+      const newQty = Math.min(5, Math.max(1, computedQty));
 
       await this.supabaseService.admin
         .from('cart_items')
