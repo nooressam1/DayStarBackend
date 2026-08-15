@@ -349,6 +349,18 @@ export class ProductService {
       throw new BadRequestException('No update fields provided.');
     }
 
+    // If marking on sale in bulk, identify items that were not on sale
+    let newlyOnSaleIds: string[] = [];
+    if (updateData.on_sale === true) {
+      const { data: previousItems } = await this.supabaseService.admin
+        .from('product')
+        .select('id, name, slug, price, discount_percentage, images')
+        .in('id', ids)
+        .eq('on_sale', false);
+
+      newlyOnSaleIds = (previousItems || []).map((p) => p.id);
+    }
+
     const { data, error } = await this.supabaseService.admin
       .from('product')
       .update(updateData)
@@ -357,6 +369,35 @@ export class ProductService {
 
     if (error) {
       throw new InternalServerErrorException(`Failed bulk update: ${error.message}`);
+    }
+
+    // Insert pending background jobs for newly on-sale items
+    if (newlyOnSaleIds.length > 0 && data) {
+      const jobsToInsert = data
+        .filter((p: any) => newlyOnSaleIds.includes(p.id))
+        .map((p: any) => ({
+          type: 'sale_notification',
+          payload: {
+            product_id: p.id,
+            product_name: p.name,
+            slug: p.slug,
+            price: p.price,
+            discount_percentage: p.discount_percentage,
+            image: p.images?.[0] || '',
+            triggered_at: new Date().toISOString(),
+          },
+          status: 'pending',
+          attempts: 0,
+        }));
+
+      if (jobsToInsert.length > 0) {
+        const { error: jobErr } = await this.supabaseService.admin.from('jobs').insert(jobsToInsert);
+        if (jobErr) {
+          console.error('[Bulk Jobs Error] Failed to create background jobs:', jobErr);
+        } else {
+          console.log(`[Bulk Jobs Created] Created ${jobsToInsert.length} pending sale_notification jobs`);
+        }
+      }
     }
 
     return data as Product[];
@@ -385,6 +426,15 @@ export class ProductService {
         }
       }
     });
+
+    // Check if the product was already on sale
+    const { data: previousProduct } = await this.supabaseService.admin
+      .from('product')
+      .select('id, name, on_sale, price, discount_percentage, slug, images')
+      .eq('id', id)
+      .maybeSingle();
+
+    const isNewlyOnSale = updateData.on_sale === true && (!previousProduct || !previousProduct.on_sale);
 
     if (Object.keys(updateData).length > 0) {
       const { error: updateError } = await this.supabaseService.admin
@@ -430,6 +480,34 @@ export class ProductService {
 
     if (fetchError || !updatedProduct) {
       throw new NotFoundException(`Product with ID ${id} not found after update.`);
+    }
+
+    // If item was newly marked on sale, create a pending job row in the jobs table
+    if (isNewlyOnSale) {
+      const jobPayload = {
+        product_id: updatedProduct.id,
+        product_name: updatedProduct.name,
+        slug: updatedProduct.slug,
+        price: updatedProduct.price,
+        discount_percentage: updatedProduct.discount_percentage,
+        image: updatedProduct.images?.[0] || '',
+        triggered_at: new Date().toISOString(),
+      };
+
+      const { error: jobError } = await this.supabaseService.admin
+        .from('jobs')
+        .insert({
+          type: 'sale_notification',
+          payload: jobPayload,
+          status: 'pending',
+          attempts: 0,
+        });
+
+      if (jobError) {
+        console.error(`[Job Error] Failed to create sale_notification job for product ${id}:`, jobError);
+      } else {
+        console.log(`[Job Created] Pending sale_notification job created for product: "${updatedProduct.name}" (${id})`);
+      }
     }
 
     return updatedProduct as Product;

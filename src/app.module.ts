@@ -20,6 +20,9 @@ import { CustomersService } from './customers/customers.service';
 import { ContactSubmissionsController } from './contact_submissions/contact_submissions.controller';
 import { ContactSubmissionsService } from './contact_submissions/contact_submissions.service';
 import { CartModule } from './cart/cart.module';
+import { FavoritesModule } from './favorites/favorites.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -27,6 +30,7 @@ import { CartModule } from './cart/cart.module';
       isGlobal: true,
       validationSchema: envValidationSchema,
     }),
+    ScheduleModule.forRoot(),
     SupabaseModule,
     AuthModule,
     MeModule,
@@ -36,6 +40,8 @@ import { CartModule } from './cart/cart.module';
     QuizModule,
     CustomersModule,
     CartModule,
+    FavoritesModule,
+    JobsModule,
   ],
   controllers: [ProductController, discountController, categoryController, ContactSubmissionsController, CustomersController],
   providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService, CustomersService],
