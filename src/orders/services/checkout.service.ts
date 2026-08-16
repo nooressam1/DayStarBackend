@@ -167,38 +167,62 @@ export class CheckoutService {
   ): Promise<{ subTotal: number; orderItemsPayload: OrderItemPayload[] }> {
     const variantIds = items.map((item) => item.variant_id);
     const { data: variantsData, error: variantsError } = await client
-      .from('product_variants')
-      .select('*, product:products(*)')
+      .from('variants')
+      .select('id, product_id, size, sku, stock')
       .in('id', variantIds);
 
     if (variantsError || !variantsData || variantsData.length === 0) {
+      console.error('Failed to fetch variants from database:', variantsError);
       throw new BadRequestException('Could not retrieve product variants info for the order items.');
     }
 
-    const typedVariants = variantsData as DbProductVariant[];
+    const productIds = Array.from(
+      new Set(variantsData.map((v) => v.product_id).filter(Boolean)),
+    );
+
+    const { data: productsData, error: productsError } = await client
+      .from('product')
+      .select('id, name, price, on_sale, discount_percentage, images')
+      .in('id', productIds);
+
+    if (productsError || !productsData || productsData.length === 0) {
+      console.error('Failed to fetch products for variants:', productsError);
+      throw new BadRequestException('Could not retrieve product information for the order items.');
+    }
+
+    const productMap = new Map(productsData.map((p) => [p.id, p]));
     let subTotal = 0;
     const orderItemsPayload: OrderItemPayload[] = [];
 
     for (const item of items) {
-      const variant = typedVariants.find((v) => v.id === item.variant_id);
+      const variant = variantsData.find((v) => v.id === item.variant_id);
       if (!variant) {
         throw new BadRequestException(`Variant with id ${item.variant_id} does not exist.`);
       }
 
-      if (variant.stock_quantity < item.quantity) {
+      const product = productMap.get(variant.product_id);
+      if (!product) {
+        throw new BadRequestException(`Product for variant ${item.variant_id} does not exist.`);
+      }
+
+      if (variant.stock !== undefined && variant.stock !== null && variant.stock < item.quantity) {
         throw new BadRequestException(
-          `Insufficient stock for item "${variant.product?.name || variant.id}". Only ${variant.stock_quantity} available.`,
+          `Insufficient stock for item "${product.name || variant.id}". Only ${variant.stock} available.`,
         );
       }
 
-      const unitPrice = variant.price;
+      let unitPrice = Number(product.price) || 0;
+      if (product.on_sale && product.discount_percentage && product.discount_percentage > 0) {
+        unitPrice = Math.round(unitPrice * (1 - product.discount_percentage / 100));
+      }
+
       subTotal += unitPrice * item.quantity;
 
       orderItemsPayload.push({
         variant_id: item.variant_id,
         quantity: item.quantity,
         unit_price_snapshot: unitPrice,
-        name: variant.product?.name || 'Skincare Product',
+        name: product.name || 'Skincare Product',
         size: variant.size || 'Standard',
       });
     }
