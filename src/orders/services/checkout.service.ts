@@ -328,7 +328,7 @@ export class CheckoutService {
     paymentMethod = 'cash',
     paymentStatus = 'pending',
   ): Promise<Order> {
-    const payload: CreateOrderPayload = {
+    const basePayload: Record<string, unknown> = {
       user_id: userId,
       address_id: addressId,
       order_status: 'pending',
@@ -338,43 +338,53 @@ export class CheckoutService {
       full_name: fullName,
       phone_number: phoneNumber,
       payment_method: paymentMethod,
-      payment_status: paymentStatus,
     };
 
-    let { data: insertedOrder, error: orderError } = await client
+    // 1. Try inserting with payment_method and payment_status
+    let insertResult = await client
       .from('orders')
-      .insert(payload)
+      .insert({ ...basePayload, payment_status: paymentStatus })
       .select()
       .single();
 
-    if (orderError) {
-      console.warn('Orders insert failed on full payload:', orderError.message);
-      // Fallback: omit payment columns if they do not exist in the database table schema yet
-      const { payment_method, payment_status, ...fallbackPayload } = payload;
-      const fallbackRes = await client
+    // 2. If payment_status is rejected, insert with payment_method
+    if (insertResult.error) {
+      console.warn('Insert with payment_status failed, retrying with payment_method:', insertResult.error.message);
+      insertResult = await client
         .from('orders')
-        .insert(fallbackPayload)
+        .insert(basePayload)
         .select()
         .single();
-
-      if (fallbackRes.error || !fallbackRes.data) {
-        console.error('Order header creation failure:', fallbackRes.error || orderError);
-        throw new BadRequestException(
-          `Could not create order: ${fallbackRes.error?.message || orderError.message}`,
-        );
-      }
-
-      insertedOrder = {
-        ...fallbackRes.data,
-        payment_method: paymentMethod,
-        payment_status: paymentStatus,
-      };
     }
+
+    // 3. If order_status was named status, retry with status
+    if (insertResult.error) {
+      console.warn('Insert with order_status failed, retrying with status:', insertResult.error.message);
+      const { order_status, ...withoutOrderStatus } = basePayload;
+      insertResult = await client
+        .from('orders')
+        .insert({ ...withoutOrderStatus, status: 'pending' })
+        .select()
+        .single();
+    }
+
+    if (insertResult.error || !insertResult.data) {
+      console.error('Order creation failed:', insertResult.error);
+      throw new BadRequestException(
+        `Could not create order: ${insertResult.error?.message || 'Database error'}`,
+      );
+    }
+
+    const insertedOrder = insertResult.data as Record<string, unknown>;
+    const resolvedStatus = (insertedOrder.order_status as string) || (insertedOrder.status as string) || 'pending';
+    const resolvedPaymentMethod = (insertedOrder.payment_method as string) || paymentMethod;
 
     return {
       ...insertedOrder,
-      status: (insertedOrder as Record<string, unknown>).order_status || (insertedOrder as Record<string, unknown>).status || 'pending',
-      order_status: (insertedOrder as Record<string, unknown>).order_status || (insertedOrder as Record<string, unknown>).status || 'pending',
+      payment_method: resolvedPaymentMethod,
+      payment_status: (insertedOrder.payment_status as string) || paymentStatus,
+      status: resolvedStatus,
+      order_status: resolvedStatus,
     } as Order;
   }
 
