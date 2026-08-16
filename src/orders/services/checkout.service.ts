@@ -331,7 +331,7 @@ export class CheckoutService {
     const payload: CreateOrderPayload = {
       user_id: userId,
       address_id: addressId,
-      status: 'pending',
+      order_status: 'pending',
       total: finalTotal,
       discount_amount: discountAmount,
       discount_id: discountId,
@@ -371,7 +371,11 @@ export class CheckoutService {
       };
     }
 
-    return insertedOrder as Order;
+    return {
+      ...insertedOrder,
+      status: (insertedOrder as Record<string, unknown>).order_status || (insertedOrder as Record<string, unknown>).status || 'pending',
+      order_status: (insertedOrder as Record<string, unknown>).order_status || (insertedOrder as Record<string, unknown>).status || 'pending',
+    } as Order;
   }
 
   private async createOrderItems(

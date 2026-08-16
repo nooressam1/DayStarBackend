@@ -122,7 +122,7 @@ export class AddressesService {
     // Query orders linked to this address
     const { data: linkedOrders, error: ordersError } = await this.supabaseService.admin
       .from('orders')
-      .select('id, status')
+      .select('id, order_status')
       .eq('address_id', addressId);
 
     if (ordersError) {
@@ -130,7 +130,10 @@ export class AddressesService {
     }
 
     const activeOrders = (linkedOrders || []).filter(
-      (o) => o.status !== 'confirmed' && o.status !== 'cancelled'
+      (o: { id: string; order_status?: string; status?: string }) => {
+        const s = o.order_status || o.status;
+        return s !== 'confirmed' && s !== 'cancelled';
+      }
     );
 
     if (activeOrders.length > 0) {

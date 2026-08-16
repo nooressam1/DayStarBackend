@@ -3,7 +3,8 @@ export interface Order {
   order_number: number;
   user_id: string;
   address_id: string;
-  status: string;
+  order_status: string;
+  status?: string;
   total: number;
   discount_amount?: number;
   discount_id?: number | null;
@@ -37,7 +38,8 @@ export interface CreateAddressParams {
 export interface CreateOrderPayload {
   user_id: string;
   address_id: string;
-  status: string;
+  order_status: string;
+  status?: string;
   total: number;
   discount_amount: number;
   discount_id: number | null;

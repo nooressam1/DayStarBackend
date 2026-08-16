@@ -18,7 +18,7 @@ export class OrdersQueryService {
         id,
         user_id,
         order_number,
-        status,
+        order_status,
         total,
         discount_amount,
         payment_method,
@@ -46,7 +46,7 @@ export class OrdersQueryService {
           id,
           user_id,
           order_number,
-          status,
+          order_status,
           total,
           discount_amount,
           full_name,
@@ -98,8 +98,12 @@ export class OrdersQueryService {
       throw new BadRequestException('Could not retrieve order items.');
     }
 
+    const resolvedStatus = (orders as Record<string, unknown>).order_status || (orders as Record<string, unknown>).status || 'pending';
+
     return {
       ...orders,
+      status: resolvedStatus,
+      order_status: resolvedStatus,
       email: userEmail || null,
       order_number: orders.order_number || orders.id.slice(0, 8).toUpperCase(),
       items,
@@ -114,7 +118,7 @@ export class OrdersQueryService {
         id,
         user_id,
         order_number,
-        status,
+        order_status,
         total,
         discount_amount,
         full_name,
@@ -135,17 +139,22 @@ export class OrdersQueryService {
       throw new BadRequestException('could not retrieve orders');
     }
 
-    return (orders || []).map((o: Record<string, unknown>) => ({
-      ...o,
-      order_number: (o.order_number as number) || (o.id as string).slice(0, 8).toUpperCase(),
-    }));
+    return (orders || []).map((o: Record<string, unknown>) => {
+      const resolvedStatus = (o.order_status as string) || (o.status as string) || 'pending';
+      return {
+        ...o,
+        status: resolvedStatus,
+        order_status: resolvedStatus,
+        order_number: (o.order_number as number) || (o.id as string).slice(0, 8).toUpperCase(),
+      };
+    });
   }
 
   async cancelOrder(orderID: string, userID: string) {
     const client: SupabaseClient = this.supabaseService.admin;
     const { data: order, error: OrderError } = await client
       .from('orders')
-      .select('id, status, user_id')
+      .select('id, order_status, user_id')
       .eq('id', orderID)
       .single();
 
@@ -155,13 +164,14 @@ export class OrdersQueryService {
     if (order.user_id !== userID) {
       throw new BadRequestException('Access denied.');
     }
-    if (order.status !== 'pending') {
-      throw new BadRequestException(`Cannot cancel order because it is already '${order.status}'.`);
+    const currentStatus = order.order_status || (order as Record<string, unknown>).status;
+    if (currentStatus !== 'pending') {
+      throw new BadRequestException(`Cannot cancel order because it is already '${currentStatus}'.`);
     }
 
     const { data: updateOrder, error: UpdateError } = await client
       .from('orders')
-      .update({ status: 'cancelled' })
+      .update({ order_status: 'cancelled' })
       .eq('id', orderID)
       .select()
       .single();
@@ -173,7 +183,10 @@ export class OrdersQueryService {
     return {
       success: true,
       message: 'Order cancelled successfully',
-      order: updateOrder,
+      order: {
+        ...updateOrder,
+        status: updateOrder.order_status,
+      },
     };
   }
 }

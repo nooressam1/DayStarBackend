@@ -34,7 +34,7 @@ export class OrdersAdminService {
         id,
         user_id,
         order_number,
-        status,
+        order_status,
         total,
         discount_amount,
         payment_method,
@@ -48,8 +48,8 @@ export class OrdersAdminService {
 
     // Apply status filter
     if (params?.status) {
-      countQuery = countQuery.eq('status', params.status);
-      dataQuery = dataQuery.eq('status', params.status);
+      countQuery = countQuery.eq('order_status', params.status);
+      dataQuery = dataQuery.eq('order_status', params.status);
     }
 
     // Apply search filter (search by order_number, full_name, phone_number)
@@ -81,10 +81,15 @@ export class OrdersAdminService {
       throw new BadRequestException('Could not retrieve orders.');
     }
 
-    const items = (orders || []).map((o: Record<string, unknown>) => ({
-      ...o,
-      order_number: (o.order_number as number) || (o.id as string).slice(0, 8).toUpperCase(),
-    }));
+    const items = (orders || []).map((o: Record<string, unknown>) => {
+      const resolvedStatus = (o.order_status as string) || (o.status as string) || 'pending';
+      return {
+        ...o,
+        status: resolvedStatus,
+        order_status: resolvedStatus,
+        order_number: (o.order_number as number) || (o.id as string).slice(0, 8).toUpperCase(),
+      };
+    });
 
     return { items, total: count ?? 0 };
   }
@@ -98,7 +103,7 @@ export class OrdersAdminService {
         id,
         user_id,
         order_number,
-        status,
+        order_status,
         total,
         discount_amount,
         payment_method,
@@ -180,8 +185,12 @@ export class OrdersAdminService {
       };
     });
 
+    const resolvedStatus = order.order_status || (order as Record<string, unknown>).status || 'pending';
+
     return {
       ...order,
+      status: resolvedStatus,
+      order_status: resolvedStatus,
       order_number: order.order_number || order.id.slice(0, 8).toUpperCase(),
       user: {
         id: order.user_id,
@@ -198,7 +207,7 @@ export class OrdersAdminService {
     const client: SupabaseClient = this.supabaseService.admin;
     const { data: order, error: orderError } = await client
       .from('orders')
-      .select('id, status')
+      .select('id, order_status')
       .eq('id', orderId)
       .single();
 
@@ -206,7 +215,7 @@ export class OrdersAdminService {
       throw new BadRequestException('Order not found.');
     }
 
-    const payload: { status: string; cancel_reason?: string } = { status };
+    const payload: { order_status: string; cancel_reason?: string } = { order_status: status };
     if (reason) {
       payload.cancel_reason = reason;
     }
@@ -225,7 +234,10 @@ export class OrdersAdminService {
     return {
       success: true,
       message: `Order status updated to '${status}'`,
-      order: updatedOrder,
+      order: {
+        ...updatedOrder,
+        status: updatedOrder.order_status,
+      },
     };
   }
 
