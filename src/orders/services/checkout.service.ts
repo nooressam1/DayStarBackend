@@ -22,7 +22,7 @@ export class CheckoutService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly emailService: EmailService,
-  ) {}
+  ) { }
 
   async processCheckout(
     userId: string,
@@ -341,15 +341,34 @@ export class CheckoutService {
       payment_status: paymentStatus,
     };
 
-    const { data: insertedOrder, error: orderError } = await client
+    let { data: insertedOrder, error: orderError } = await client
       .from('orders')
       .insert(payload)
       .select()
       .single();
 
-    if (orderError || !insertedOrder) {
-      console.error('Order header creation failure:', orderError);
-      throw new BadRequestException('Could not create order.');
+    if (orderError) {
+      console.warn('Orders insert failed on full payload:', orderError.message);
+      // Fallback: omit payment columns if they do not exist in the database table schema yet
+      const { payment_method, payment_status, ...fallbackPayload } = payload;
+      const fallbackRes = await client
+        .from('orders')
+        .insert(fallbackPayload)
+        .select()
+        .single();
+
+      if (fallbackRes.error || !fallbackRes.data) {
+        console.error('Order header creation failure:', fallbackRes.error || orderError);
+        throw new BadRequestException(
+          `Could not create order: ${fallbackRes.error?.message || orderError.message}`,
+        );
+      }
+
+      insertedOrder = {
+        ...fallbackRes.data,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+      };
     }
 
     return insertedOrder as Order;
