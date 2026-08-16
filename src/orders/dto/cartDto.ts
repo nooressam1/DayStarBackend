@@ -59,9 +59,16 @@ export class CreateOrderDto {
   @IsOptional()
   addressId?: string;
 
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentStatus?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => cartItemDto)
   items!: cartItemDto[];
-
 }

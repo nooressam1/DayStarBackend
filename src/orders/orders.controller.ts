@@ -1,5 +1,7 @@
 import { Controller, Post, Body, UseGuards, Get, Param, Patch, Query } from '@nestjs/common';
-import { OrdersService } from './orders.service';
+import { CheckoutService } from './services/checkout.service';
+import { OrdersQueryService } from './services/orders-query.service';
+import { OrdersAdminService } from './services/orders-admin.service';
 import { CreateOrderDto } from './dto/cartDto';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -7,7 +9,11 @@ import { CurrentUser } from '../auth/current-user.decorator';
 @Controller('orders')
 @UseGuards(SupabaseAuthGuard)
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) { }
+  constructor(
+    private readonly checkoutService: CheckoutService,
+    private readonly ordersQueryService: OrdersQueryService,
+    private readonly ordersAdminService: OrdersAdminService,
+  ) {}
 
   @Post('checkout')
   async checkout(
@@ -16,7 +22,7 @@ export class OrdersController {
   ) {
     const userId = user.sub;
     const email = user.email;
-    return this.ordersService.processCheckout(userId, email, createOrderDto);
+    return this.checkoutService.processCheckout(userId, email, createOrderDto);
   }
 
   @Get('admin/all')
@@ -26,7 +32,7 @@ export class OrdersController {
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
-    return this.ordersService.getAllOrdersAdmin({
+    return this.ordersAdminService.getAllOrdersAdmin({
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       status: status || undefined,
@@ -36,8 +42,9 @@ export class OrdersController {
 
   @Get('admin/:id')
   async getAdminOrderById(@Param('id') orderId: string) {
-    return this.ordersService.getOrderByIdAdmin(orderId);
+    return this.ordersAdminService.getOrderByIdAdmin(orderId);
   }
+
   @Get(':id')
   async getOrder(
     @CurrentUser() user: any,
@@ -45,8 +52,9 @@ export class OrdersController {
   ) {
     const userId = user.sub;
     const email = user.email;
-    return this.ordersService.getOrderById(userId, orderId, email);
+    return this.ordersQueryService.getOrderById(userId, orderId, email);
   }
+
   @Get('')
   async getAllOrders(
     @CurrentUser() user: any,
@@ -54,42 +62,40 @@ export class OrdersController {
     @Query('offset') offset?: string,
   ) {
     const userId = user.sub;
-    return this.ordersService.getAllOrders(
+    return this.ordersQueryService.getAllOrders(
       userId,
       limit ? parseInt(limit, 10) : undefined,
       offset ? parseInt(offset, 10) : undefined,
     );
   }
+
   @Patch('admin/:id/status')
   async updateOrderStatusAdmin(
     @Param('id') orderId: string,
-    @Body() body: { status: string; reason?: string }
+    @Body() body: { status: string; reason?: string },
   ) {
-    return this.ordersService.updateOrderStatusAdmin(orderId, body.status, body.reason);
+    return this.ordersAdminService.updateOrderStatusAdmin(orderId, body.status, body.reason);
   }
 
   @Patch('admin/:id/cancel')
   async cancelOrderAdmin(
     @Param('id') orderId: string,
-    @Body() body?: { reason?: string }
+    @Body() body?: { reason?: string },
   ) {
-    return this.ordersService.cancelOrderAdmin(orderId, body?.reason);
+    return this.ordersAdminService.cancelOrderAdmin(orderId, body?.reason);
   }
 
   @Patch('admin/:id/complete-payment')
-  async completePaymentAdmin(
-    @Param('id') orderId: string
-  ) {
-    return this.ordersService.completePaymentAdmin(orderId);
+  async completePaymentAdmin(@Param('id') orderId: string) {
+    return this.ordersAdminService.completePaymentAdmin(orderId);
   }
 
   @Patch(':orderid/cancel')
   async cancelOrder(
     @CurrentUser() user: any,
-    @Param('orderid') orderId: string
+    @Param('orderid') orderId: string,
   ) {
     const userId = user.sub;
-    console.log("testingg 2", orderId);
-    return this.ordersService.cancelOrder(orderId, userId);
+    return this.ordersQueryService.cancelOrder(orderId, userId);
   }
 }

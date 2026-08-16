@@ -4,6 +4,9 @@ export function buildOrderConfirmationHtml(order: any): string {
   const formatMoney = (amount: number) => `EGP ${(amount / 100).toFixed(2)}`;
   const orderNum = order.order_number;
   const customerName = order.fullName || order.name || 'Valued Customer';
+  const paymentMethod = order.payment_method === 'card' ? 'Credit / Debit Card' : 'Cash on Delivery';
+  const isPaid = order.payment_status === 'paid' || order.payment_method === 'card';
+  const paymentStatusText = isPaid ? 'Paid (Online)' : 'Pay on Delivery';
 
   const itemsRows = (order.items || [])
     .map(
@@ -47,6 +50,14 @@ export function buildOrderConfirmationHtml(order: any): string {
       <tr>
         <td style="padding-top: 8px; font-size: 13px; color: #8b7e7a; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Date</td>
         <td align="right" style="padding-top: 8px; font-size: 14px; color: #374151;">${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}</td>
+      </tr>
+      <tr>
+        <td style="padding-top: 8px; font-size: 13px; color: #8b7e7a; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Payment Method</td>
+        <td align="right" style="padding-top: 8px; font-size: 14px; color: #374151; font-weight: 600;">${paymentMethod}</td>
+      </tr>
+      <tr>
+        <td style="padding-top: 8px; font-size: 13px; color: #8b7e7a; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Payment Status</td>
+        <td align="right" style="padding-top: 8px; font-size: 13px; color: ${isPaid ? '#2e7d32' : '#b45309'}; font-weight: 700;">${paymentStatusText}</td>
       </tr>
     </table>
 
