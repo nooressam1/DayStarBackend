@@ -7,12 +7,12 @@ import { SupabaseService } from '../../supabase/supabase.service';
 
 @Injectable()
 export class OrdersQueryService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(private readonly supabaseService: SupabaseService) { }
 
   async getOrderById(userId: string, orderId: string, userEmail?: string) {
     const client: SupabaseClient = this.supabaseService.admin;
 
-    const { data: orders, error: orderError } = await client
+    let { data: orders, error: orderError } = await client
       .from('orders')
       .select(`
         id,
@@ -39,7 +39,41 @@ export class OrdersQueryService {
       .single();
 
     if (orderError || !orders) {
-      throw new BadRequestException('Order not found or access denied.');
+      // Fallback query if payment columns don't exist in Supabase schema yet
+      const fallbackQuery = await client
+        .from('orders')
+        .select(`
+          id,
+          user_id,
+          order_number,
+          status,
+          total,
+          discount_amount,
+          full_name,
+          phone_number,
+          created_at,
+          addresses (
+            id,
+            street,
+            building_no,
+            city,
+            country
+          )
+        `)
+        .eq('id', orderId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fallbackQuery.error || !fallbackQuery.data) {
+        console.error('Order query error:', fallbackQuery.error || orderError);
+        throw new BadRequestException('Order not found or access denied.');
+      }
+
+      orders = {
+        ...fallbackQuery.data,
+        payment_method: 'cash',
+        payment_status: 'pending',
+      };
     }
 
     const { data: items, error: itemsError } = await client
@@ -67,7 +101,7 @@ export class OrdersQueryService {
     return {
       ...orders,
       email: userEmail || null,
-      order_number: orders.order_number,
+      order_number: orders.order_number || orders.id.slice(0, 8).toUpperCase(),
       items,
     };
   }
@@ -83,8 +117,6 @@ export class OrdersQueryService {
         status,
         total,
         discount_amount,
-        payment_method,
-        payment_status,
         full_name,
         phone_number,
         created_at
