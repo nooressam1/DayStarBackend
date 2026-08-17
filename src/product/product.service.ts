@@ -447,27 +447,82 @@ export class ProductService {
       }
     }
 
-    if (variants !== undefined && variants.length > 0) {
-      for (const variantDto of variants) {
-        const variantUpdateData: Record<string, any> = {};
-        if (variantDto.size !== undefined) variantUpdateData.size = variantDto.size;
-        if (variantDto.sku !== undefined) variantUpdateData.sku = variantDto.sku;
-        if (variantDto.stock !== undefined) variantUpdateData.stock = Number(variantDto.stock);
+    if (variants !== undefined) {
+      const { data: existingVariants } = await this.supabaseService.admin
+        .from('variants')
+        .select('id, sku')
+        .eq('product_id', id);
 
-        if (Object.keys(variantUpdateData).length > 0) {
-          let query = this.supabaseService.admin.from('variants').update(variantUpdateData);
-          const isUuid = variantDto.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(variantDto.id);
-          if (isUuid) {
-            query = query.eq('id', variantDto.id);
-          } else if (variantDto.sku) {
-            query = query.eq('sku', variantDto.sku).eq('product_id', id);
-          } else {
-            continue;
+      const existingList = existingVariants || [];
+      const existingMapById = new Map<string, any>(existingList.map((v) => [v.id, v]));
+      const existingMapBySku = new Map<string, any>(existingList.map((v) => [v.sku, v]));
+      const processedVariantIds = new Set<string>();
+
+      for (const variantDto of variants) {
+        const isUuid = Boolean(variantDto.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(variantDto.id));
+        
+        let existingVariant: any = null;
+        if (isUuid && existingMapById.has(variantDto.id!)) {
+          existingVariant = existingMapById.get(variantDto.id!);
+        } else if (variantDto.sku && existingMapBySku.has(variantDto.sku)) {
+          existingVariant = existingMapBySku.get(variantDto.sku);
+        }
+
+        if (existingVariant) {
+          // Update existing variant record
+          const variantUpdateData: Record<string, any> = {};
+          if (variantDto.size !== undefined) variantUpdateData.size = variantDto.size;
+          if (variantDto.sku !== undefined) variantUpdateData.sku = variantDto.sku;
+          if (variantDto.stock !== undefined) variantUpdateData.stock = Number(variantDto.stock) || 0;
+
+          if (Object.keys(variantUpdateData).length > 0) {
+            const { error: vErr } = await this.supabaseService.admin
+              .from('variants')
+              .update(variantUpdateData)
+              .eq('id', existingVariant.id);
+
+            if (vErr) {
+              console.error(`Failed to update variant ${existingVariant.id}: ${vErr.message}`);
+            }
           }
-          const { error: vErr } = await query;
-          if (vErr) {
-            console.error(`Failed to update variant: ${vErr.message}`);
+          processedVariantIds.add(existingVariant.id);
+        } else {
+          // Insert new variant for this product
+          const newVariantData: Record<string, any> = {
+            product_id: id,
+            size: variantDto.size || 'Standard',
+            sku: variantDto.sku || `SKU-${Date.now()}`,
+            stock: Number(variantDto.stock) || 0,
+          };
+
+          const { data: insertedVar, error: insErr } = await this.supabaseService.admin
+            .from('variants')
+            .insert(newVariantData)
+            .select('id')
+            .single();
+
+          if (insErr) {
+            console.error(`Failed to insert new variant: ${insErr.message}`);
+          } else if (insertedVar) {
+            processedVariantIds.add(insertedVar.id);
           }
+        }
+      }
+
+      // If user explicitly removed variants in the edit form, remove them from DB
+      const idsToDelete = existingList
+        .map((v) => v.id)
+        .filter((vId) => !processedVariantIds.has(vId));
+
+      if (idsToDelete.length > 0) {
+        const { error: delErr } = await this.supabaseService.admin
+          .from('variants')
+          .delete()
+          .in('id', idsToDelete)
+          .eq('product_id', id);
+
+        if (delErr) {
+          console.error(`Failed to delete removed variants: ${delErr.message}`);
         }
       }
     }
