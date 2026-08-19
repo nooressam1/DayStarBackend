@@ -7,4 +7,4 @@ import { Module } from "@nestjs/common";
     controllers: [discountController],
     providers: [DiscountService, SupabaseService],
 })
-export class ProductModule { }
+export class DiscountModule { }

@@ -13,6 +13,11 @@ export class categoryController {
         return this.catergoryService.getCategories();
     }
 
+    @Get(':id')
+    async getCategory(@Param('id') id: string): Promise<category | null> {
+        return this.catergoryService.getCategoryById(id);
+    }
+
     @Post('')
     async createCategory(@Body() dto: CreateCategoryDto): Promise<category> {
         return this.catergoryService.createCategory(dto);

@@ -8,6 +8,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { discount } from './discount.interface';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { UpdateDiscountDto } from './dto/update-discount.dto';
+import { ListDiscountsDto } from './dto/list-discounts.dto';
 
 @Injectable()
 export class DiscountService {
@@ -23,6 +24,70 @@ export class DiscountService {
       throw new InternalServerErrorException(response.error.message);
     }
     return (response.data as discount[]) || [];
+  }
+
+  async getPaginatedDiscounts(
+    params: ListDiscountsDto,
+  ): Promise<{ items: discount[]; total: number }> {
+    const page = params.page ? Math.max(1, params.page) : 1;
+    const limit = params.limit ? Math.max(1, params.limit) : 10;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    let countQuery = this.supabaseService.admin
+      .from('discount')
+      .select('*', { count: 'exact', head: true });
+
+    let dataQuery = this.supabaseService.admin
+      .from('discount')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    // Apply search filter
+    if (params.search && params.search.trim()) {
+      const term = params.search.trim();
+      countQuery = countQuery.ilike('code', `%${term}%`);
+      dataQuery = dataQuery.ilike('code', `%${term}%`);
+    }
+
+    // Apply type filter
+    if (params.type && params.type !== 'All Types' && params.type !== 'all') {
+      countQuery = countQuery.eq('type', params.type);
+      dataQuery = dataQuery.eq('type', params.type);
+    }
+
+    // Apply status filter
+    if (params.status && params.status !== 'All Statuses' && params.status !== 'all') {
+      const now = new Date().toISOString();
+      if (params.status.toLowerCase() === 'active') {
+        countQuery = countQuery.eq('is_active', true);
+        dataQuery = dataQuery.eq('is_active', true);
+      } else if (params.status.toLowerCase() === 'scheduled') {
+        countQuery = countQuery.gt('active_start_date', now);
+        dataQuery = dataQuery.gt('active_start_date', now);
+      } else if (params.status.toLowerCase() === 'expired') {
+        countQuery = countQuery.lt('active_end_date', now);
+        dataQuery = dataQuery.lt('active_end_date', now);
+      }
+    }
+
+    const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
+      countQuery,
+      dataQuery,
+    ]);
+
+    if (countError) {
+      throw new InternalServerErrorException(countError.message);
+    }
+    if (dataError) {
+      throw new InternalServerErrorException(dataError.message);
+    }
+
+    return {
+      items: (data as discount[]) || [],
+      total: count || 0,
+    };
   }
 
   async findbycode(code: string): Promise<discount> {

@@ -1,16 +1,24 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
 import { DiscountService } from './discount.service';
 import { discount } from './discount.interface';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { UpdateDiscountDto } from './dto/update-discount.dto';
+import { ListDiscountsDto } from './dto/list-discounts.dto';
 
 @Controller('discount')
 export class discountController {
   constructor(private readonly discountService: DiscountService) { }
 
-  @Get()
+  @Get('all')
   async getAllDiscounts(): Promise<discount[]> {
     return this.discountService.getAllDiscounts();
+  }
+
+  @Get()
+  async getPaginatedDiscounts(
+    @Query() query: ListDiscountsDto,
+  ): Promise<{ items: discount[]; total: number }> {
+    return this.discountService.getPaginatedDiscounts(query);
   }
 
   @Get(':code')

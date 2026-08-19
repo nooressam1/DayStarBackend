@@ -44,6 +44,20 @@ export class CategoryService {
         }
     }
 
+    async getCategoryById(id: string): Promise<category | null> {
+        try {
+            const { data, error } = await this.supabaseService.admin
+                .from('category')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (error) throw error;
+            return data ? formatCategory(data) : null;
+        } catch (error) {
+            throw new InternalServerErrorException(error);
+        }
+    }
+
     async createCategory(dto: CreateCategoryDto): Promise<category> {
         try {
             const payload: any = {

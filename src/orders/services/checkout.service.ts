@@ -241,7 +241,7 @@ export class CheckoutService {
     if (couponCode && couponCode.trim()) {
       const cleanCode = couponCode.trim();
       const { data: discountRecord, error: discountError } = await client
-        .from('discounts')
+        .from('discount')
         .select('*')
         .eq('code', cleanCode)
         .eq('is_active', true)
