@@ -248,4 +248,8 @@ export class OrdersAdminService {
   async completePaymentAdmin(orderId: string) {
     return this.updateOrderStatusAdmin(orderId, 'delivered');
   }
+
+  async completeDeliveryAdmin(orderId: string) {
+    return this.updateOrderStatusAdmin(orderId, 'delivered');
+  }
 }

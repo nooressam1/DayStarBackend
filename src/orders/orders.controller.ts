@@ -90,6 +90,11 @@ export class OrdersController {
     return this.ordersAdminService.completePaymentAdmin(orderId);
   }
 
+  @Patch('admin/:id/complete-delivery')
+  async completeDeliveryAdmin(@Param('id') orderId: string) {
+    return this.ordersAdminService.completeDeliveryAdmin(orderId);
+  }
+
   @Patch(':orderid/cancel')
   async cancelOrder(
     @CurrentUser() user: any,
