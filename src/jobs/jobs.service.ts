@@ -31,6 +31,31 @@ export class JobsService {
     }
   }
 
+  // Run every 20 minutes to automatically deactivate expired discounts
+  @Cron('*/20 * * * *')
+  async handleDiscountExpirationCron() {
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await this.supabaseService.admin
+        .from('discount')
+        .update({ is_active: false })
+        .eq('is_active', true)
+        .not('active_end_date', 'is', null)
+        .lt('active_end_date', now)
+        .select('id, code');
+
+      if (error) {
+        this.logger.error(`Failed to deactivate expired discounts: ${error.message}`);
+      } else if (data && data.length > 0) {
+        this.logger.log(
+          `[JobsService] Automatically deactivated ${data.length} expired discount(s): ${data.map((d) => d.code).join(', ')}`,
+        );
+      }
+    } catch (err: any) {
+      this.logger.error(`Error in discount expiration cron: ${err.message}`);
+    }
+  }
+
   async processPendingJobs() {
     // 1. Pick up pending jobs
     const { data: pendingJobs, error } = await this.supabaseService.admin

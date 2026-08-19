@@ -14,7 +14,23 @@ import { ListDiscountsDto } from './dto/list-discounts.dto';
 export class DiscountService {
   constructor(private readonly supabaseService: SupabaseService) { }
 
+  async autoDeactivateExpiredDiscounts(): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+      await this.supabaseService.admin
+        .from('discount')
+        .update({ is_active: false })
+        .eq('is_active', true)
+        .not('active_end_date', 'is', null)
+        .lt('active_end_date', now);
+    } catch {
+      // Ignore non-blocking error
+    }
+  }
+
   async getAllDiscounts(): Promise<discount[]> {
+    await this.autoDeactivateExpiredDiscounts();
+
     const response = await this.supabaseService.admin
       .from('discount')
       .select('*')
@@ -29,6 +45,8 @@ export class DiscountService {
   async getPaginatedDiscounts(
     params: ListDiscountsDto,
   ): Promise<{ items: discount[]; total: number }> {
+    await this.autoDeactivateExpiredDiscounts();
+
     const page = params.page ? Math.max(1, params.page) : 1;
     const limit = params.limit ? Math.max(1, params.limit) : 10;
     const from = (page - 1) * limit;
@@ -102,7 +120,22 @@ export class DiscountService {
     if (response.error || !response.data) {
       throw new NotFoundException('Discount not found');
     }
-    return response.data as discount;
+
+    const discountData = response.data as discount;
+    const now = new Date();
+
+    if (discountData.active_end_date && new Date(discountData.active_end_date) < now) {
+      if (discountData.is_active) {
+        await this.supabaseService.admin
+          .from('discount')
+          .update({ is_active: false })
+          .eq('id', discountData.id);
+        discountData.is_active = false;
+      }
+      throw new NotFoundException('Discount has expired');
+    }
+
+    return discountData;
   }
 
   async createDiscount(dto: CreateDiscountDto): Promise<discount> {
@@ -121,12 +154,15 @@ export class DiscountService {
       );
     }
 
+    const isPastEndDate = dto.active_end_date && new Date(dto.active_end_date) < new Date();
+    const isActive = isPastEndDate ? false : (dto.is_active ?? true);
+
     const payload = {
       code: formattedCode,
       type: dto.type,
       value: dto.value,
       created_at: new Date().toISOString(),
-      is_active: dto.is_active ?? true,
+      is_active: isActive,
       min_requirement_type: dto.min_requirement_type,
       min_requirement_value: dto.min_requirement_value,
       active_start_date: dto.active_start_date,
@@ -172,7 +208,12 @@ export class DiscountService {
     if (dto.min_requirement_type !== undefined) payload.min_requirement_type = dto.min_requirement_type;
     if (dto.min_requirement_value !== undefined) payload.min_requirement_value = dto.min_requirement_value;
     if (dto.active_start_date !== undefined) payload.active_start_date = dto.active_start_date;
-    if (dto.active_end_date !== undefined) payload.active_end_date = dto.active_end_date;
+    if (dto.active_end_date !== undefined) {
+      payload.active_end_date = dto.active_end_date;
+      if (dto.active_end_date && new Date(dto.active_end_date) < new Date()) {
+        payload.is_active = false;
+      }
+    }
 
     const response = await this.supabaseService.admin
       .from('discount')

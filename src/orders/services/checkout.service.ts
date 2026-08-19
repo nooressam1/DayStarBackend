@@ -259,6 +259,10 @@ export class CheckoutService {
       }
 
       if (typedDiscount.active_end_date && new Date(typedDiscount.active_end_date) < now) {
+        await client
+          .from('discount')
+          .update({ is_active: false })
+          .eq('id', typedDiscount.id);
         throw new BadRequestException('This promo code has expired.');
       }
 
