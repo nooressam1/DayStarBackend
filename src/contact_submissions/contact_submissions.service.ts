@@ -45,16 +45,72 @@ export class ContactSubmissionsService {
         return data as ContactSubmission;
     }
 
-    async findAll(): Promise<ContactSubmission[]> {
-        const { data, error } = await this.supabaseService.admin
+    async findAll(
+        page?: number,
+        limit?: number,
+        status?: string,
+        search?: string,
+    ) {
+        const client = this.supabaseService.admin;
+
+        // Base query for paginated list with total count
+        let query = client
             .from('contact_submissions')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('*', { count: 'exact' });
+
+        // Filter by status if provided and not "all"
+        if (status && status.toLowerCase() !== 'all' && status.toLowerCase() !== 'all statuses') {
+            query = query.eq('status', status.toLowerCase());
+        }
+
+        // Filter by search query
+        if (search && search.trim() !== '') {
+            const q = search.trim();
+            query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,subject.ilike.%${q}%,message.ilike.%${q}%`);
+        }
+
+        // Order by created_at DESC
+        query = query.order('created_at', { ascending: false });
+
+        // Apply pagination ranges if limit is provided
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const from = (pageNum - 1) * limitNum;
+        const to = from + limitNum - 1;
+
+        query = query.range(from, to);
+
+        const { data, count, error } = await query;
 
         if (error) {
             throw new InternalServerErrorException(`Failed to fetch contact submissions: ${error.message}`);
         }
 
-        return data as ContactSubmission[];
+        // Fetch KPI counts across all submissions
+        const { data: allSubmissions } = await client
+            .from('contact_submissions')
+            .select('status');
+
+        let pendingCount = 0;
+        let inProgressCount = 0;
+        let resolvedCount = 0;
+
+        if (allSubmissions) {
+            allSubmissions.forEach((s) => {
+                if (s.status === 'pending') pendingCount++;
+                else if (s.status === 'in_progress') inProgressCount++;
+                else if (s.status === 'resolved') resolvedCount++;
+            });
+        }
+
+        return {
+            items: (data as ContactSubmission[]) || [],
+            total: count || 0,
+            page: pageNum,
+            limit: limitNum,
+            pendingCount,
+            inProgressCount,
+            resolvedCount,
+        };
     }
 }
