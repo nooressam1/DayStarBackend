@@ -17,6 +17,7 @@ export class QuizController {
 
     @Post('chat')
     async chatWithAi(@Body() body: ChatRequestDto) {
+        console.log('📥 [QuizController] Incoming /quiz/chat payload:', JSON.stringify(body, null, 2));
         return this.aiQuizService.processChat(body);
     }
 
