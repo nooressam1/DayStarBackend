@@ -96,53 +96,28 @@ Return raw JSON object only.`,
 
       const payloadMessages: ChatMessagePayload[] = [systemPrompt, ...formattedMessages];
 
-      // Prioritize ultra-fast Groq models to ensure sub-second response times
-      const candidateModels = Array.from(new Set([
-        configuredModel,
-      ])).filter(Boolean);
+      const modelToUse = configuredModel || 'llama-3.1-8b-instant';
+      this.logger.log(`Sending Groq chat request using model: ${modelToUse}`);
 
-      let lastErrorText = '';
-      let res: Response | null = null;
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqApiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          messages: payloadMessages,
+          temperature: 0.7,
+          response_format: { type: 'json_object' }
+        }),
+      });
 
-      for (const modelCandidate of candidateModels) {
-        this.logger.log(`Attempting Groq chat request using model: ${modelCandidate}`);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4500); // 4.5s per model attempt
-
-        try {
-          res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${groqApiKey.trim()}`,
-            },
-            body: JSON.stringify({
-              model: modelCandidate,
-              messages: payloadMessages,
-              temperature: 0.7,
-              response_format: { type: 'json_object' }
-            }),
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            this.logger.log(`Successfully connected using model: ${modelCandidate}`);
-            break;
-          } else {
-            lastErrorText = await res.text();
-            this.logger.warn(`Groq API model ${modelCandidate} returned status ${res.status}: ${lastErrorText}`);
-          }
-        } catch (fetchErr) {
-          clearTimeout(timeoutId);
-          this.logger.warn(`Groq fetch model ${modelCandidate} failed/timed out: ${fetchErr}`);
-        }
-      }
-
-      if (!res || !res.ok) {
+      if (!res.ok) {
+        const errorText = await res.text();
+        this.logger.error(`Groq API error ${res.status}: ${errorText}`);
         return {
-          message: `⚠️ Groq API Error (${res?.status || 408}). ${lastErrorText || 'Request timed out or could not connect to Groq models'}. Please check your connection and GROQ_API_KEY.`,
+          message: `⚠️ Groq API Error (${res.status}). ${errorText || 'Unknown error'}. Please check your GROQ_API_KEY and GROQ_MODEL.`,
           extractedProfile: {
             skinType: dto?.currentProfile?.skinType || '',
             concerns: dto?.currentProfile?.concerns || [],
