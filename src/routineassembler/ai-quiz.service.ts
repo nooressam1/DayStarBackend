@@ -36,6 +36,7 @@ export class AiQuizService {
 
   async processChat(dto: ChatRequestDto): Promise<ChatResponseDto> {
     const groqApiKey = this.configService.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
+    const modelName = this.configService.get<string>('GROQ_MODEL') || process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
 
     if (!groqApiKey || groqApiKey.trim() === '') {
       this.logger.warn('GROQ_API_KEY not found in environment.');
@@ -102,7 +103,7 @@ Return raw JSON object only.`,
           'Authorization': `Bearer ${groqApiKey.trim()}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: modelName,
           messages: payloadMessages,
           temperature: 0.7,
           response_format: { type: 'json_object' }
