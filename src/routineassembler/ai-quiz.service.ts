@@ -42,10 +42,10 @@ export class AiQuizService {
       return {
         message: "⚠️ Groq API key is missing. Please set your `GROQ_API_KEY` in `DayStarBackend/.env` and restart the backend server to activate Groq AI!",
         extractedProfile: {
-          skinType: dto.currentProfile?.skinType || '',
-          concerns: dto.currentProfile?.concerns || [],
-          sensitivity: dto.currentProfile?.sensitivity || '',
-          goals: dto.currentProfile?.goals || [],
+          skinType: dto?.currentProfile?.skinType || '',
+          concerns: dto?.currentProfile?.concerns || [],
+          sensitivity: dto?.currentProfile?.sensitivity || '',
+          goals: dto?.currentProfile?.goals || [],
         },
         suggestions: ["Add GROQ_API_KEY in .env"],
         isComplete: false,
@@ -80,7 +80,20 @@ You MUST respond strictly with a JSON object containing:
 Return raw JSON object only.`,
       };
 
-      const payloadMessages = [systemPrompt, ...dto.messages];
+      const rawMessages = Array.isArray(dto?.messages)
+        ? dto.messages
+        : Array.isArray((dto as any)?.body?.messages)
+        ? (dto as any).body.messages
+        : [];
+
+      const formattedMessages: ChatMessagePayload[] = rawMessages
+        .filter((m) => m && typeof m.content === 'string' && m.content.trim() !== '')
+        .map((m) => ({
+          role: m.role === 'assistant' || (m as any).sender === 'ai' ? 'assistant' : 'user',
+          content: m.content,
+        }));
+
+      const payloadMessages: ChatMessagePayload[] = [systemPrompt, ...formattedMessages];
 
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -102,10 +115,10 @@ Return raw JSON object only.`,
         return {
           message: `⚠️ Groq API Connection Error (Status ${res.status}). Please check that your GROQ_API_KEY in DayStarBackend/.env is valid.`,
           extractedProfile: {
-            skinType: dto.currentProfile?.skinType || '',
-            concerns: dto.currentProfile?.concerns || [],
-            sensitivity: dto.currentProfile?.sensitivity || '',
-            goals: dto.currentProfile?.goals || [],
+            skinType: dto?.currentProfile?.skinType || '',
+            concerns: dto?.currentProfile?.concerns || [],
+            sensitivity: dto?.currentProfile?.sensitivity || '',
+            goals: dto?.currentProfile?.goals || [],
           },
           suggestions: ["Check GROQ_API_KEY"],
           isComplete: false,
@@ -119,10 +132,10 @@ Return raw JSON object only.`,
         return {
           message: "Empty response received from Groq AI. Please try sending your message again.",
           extractedProfile: {
-            skinType: dto.currentProfile?.skinType || '',
-            concerns: dto.currentProfile?.concerns || [],
-            sensitivity: dto.currentProfile?.sensitivity || '',
-            goals: dto.currentProfile?.goals || [],
+            skinType: dto?.currentProfile?.skinType || '',
+            concerns: dto?.currentProfile?.concerns || [],
+            sensitivity: dto?.currentProfile?.sensitivity || '',
+            goals: dto?.currentProfile?.goals || [],
           },
           suggestions: ["Try Again"],
           isComplete: false,
@@ -134,10 +147,10 @@ Return raw JSON object only.`,
       return {
         message: parsed.message || "Thank you for sharing! Could you tell me if your skin reacts easily to new ingredients?",
         extractedProfile: {
-          skinType: parsed.extractedProfile?.skinType || dto.currentProfile?.skinType || '',
-          concerns: parsed.extractedProfile?.concerns || dto.currentProfile?.concerns || [],
-          sensitivity: parsed.extractedProfile?.sensitivity || dto.currentProfile?.sensitivity || '',
-          goals: parsed.extractedProfile?.goals || dto.currentProfile?.goals || [],
+          skinType: parsed.extractedProfile?.skinType || dto?.currentProfile?.skinType || '',
+          concerns: parsed.extractedProfile?.concerns || dto?.currentProfile?.concerns || [],
+          sensitivity: parsed.extractedProfile?.sensitivity || dto?.currentProfile?.sensitivity || '',
+          goals: parsed.extractedProfile?.goals || dto?.currentProfile?.goals || [],
         },
         suggestions: parsed.suggestions || ["Sensitive skin", "Resilient skin", "Occasional breakouts"],
         isComplete: Boolean(parsed.isComplete),
@@ -147,10 +160,10 @@ Return raw JSON object only.`,
       return {
         message: `⚠️ Groq AI Request Failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please verify backend network connectivity and your GROQ_API_KEY.`,
         extractedProfile: {
-          skinType: dto.currentProfile?.skinType || '',
-          concerns: dto.currentProfile?.concerns || [],
-          sensitivity: dto.currentProfile?.sensitivity || '',
-          goals: dto.currentProfile?.goals || [],
+          skinType: dto?.currentProfile?.skinType || '',
+          concerns: dto?.currentProfile?.concerns || [],
+          sensitivity: dto?.currentProfile?.sensitivity || '',
+          goals: dto?.currentProfile?.goals || [],
         },
         suggestions: ["Retry"],
         isComplete: false,
