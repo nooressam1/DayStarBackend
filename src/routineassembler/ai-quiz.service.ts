@@ -28,41 +28,69 @@ export interface ChatResponseDto {
   isComplete: boolean;
 }
 
-const SKINCARE_SYSTEM_PROMPT = `You are Groq AI, an expert Aesthetician & Skincare Consultant for DayStar Skincare.
-Your job is to have a friendly, professional conversation to determine the user's skin profile.
+function buildSystemPrompt(profile: {
+  skinType?: string;
+  concerns?: string[];
+  sensitivity?: string;
+  goals?: string[];
+}): string {
+  const hasSkinType = !!profile.skinType;
+  const hasConcerns = Array.isArray(profile.concerns) && profile.concerns.length > 0;
+  const hasSensitivity = !!profile.sensitivity;
+  const hasGoals = Array.isArray(profile.goals) && profile.goals.length > 0;
 
-## CONVERSATION FLOW — follow these steps IN ORDER:
-1. **Skin Type** — Ask about their skin type. Once answered, move on. NEVER ask again.
-2. **Concerns** — Ask what skin concerns they have. Once answered, move on. NEVER ask again.
-3. **Sensitivity** — Ask how their skin reacts to new products. Once answered, move on. NEVER ask again.
-4. **Goals** — Ask what their skincare goals are. Once answered, move on. NEVER ask again.
-5. **Complete** — Once you have all 4 attributes, set isComplete to true and give a brief encouraging summary.
+  // Determine the exact next question to ask
+  let nextQuestion: string;
+  if (!hasSkinType) {
+    nextQuestion = 'Ask: What is your skin type? (oily, dry, combination, normal, or sensitive)';
+  } else if (!hasConcerns) {
+    nextQuestion = 'Ask: What are your main skin concerns? (acne, pigmentation, aging, redness, dryness — pick all that apply)';
+  } else if (!hasSensitivity) {
+    nextQuestion = 'Ask: How does your skin react to new products? (very sensitive, sometimes irritated, handles most things well, or unpredictable)';
+  } else if (!hasGoals) {
+    nextQuestion = 'Ask: What are your skincare goals? (clear acne, smooth fine lines, fade dark spots, calm irritation, intense hydration — pick all that apply)';
+  } else {
+    nextQuestion = 'All attributes collected. Give a warm 1-sentence summary of their profile and set isComplete to true.';
+  }
 
-## CRITICAL RULES:
-- NEVER repeat or rephrase a question the user has already answered.
-- If the user's answer gives you info for the current step, FILL that field and IMMEDIATELY ask the NEXT step's question.
-- If the user provides multiple attributes in one message, fill them all and skip to the next unanswered step.
-- Keep your messages short (2-3 sentences max). Be warm but efficient.
+  return `You are an expert Aesthetician & Skincare Consultant for DayStar Skincare.
+You are collecting the user's skin profile through a short conversation.
 
-## Valid Values:
+## CURRENT PROFILE STATE (DO NOT RE-ASK ANYTHING MARKED ✅):
+- skinType: ${hasSkinType ? `✅ Already known: "${profile.skinType}"` : '❌ Not yet answered'}
+- concerns: ${hasConcerns ? `✅ Already known: [${profile.concerns!.join(', ')}]` : '❌ Not yet answered'}
+- sensitivity: ${hasSensitivity ? `✅ Already known: "${profile.sensitivity}"` : '❌ Not yet answered'}
+- goals: ${hasGoals ? `✅ Already known: [${profile.goals!.join(', ')}]` : '❌ Not yet answered'}
+
+## YOUR NEXT ACTION:
+${nextQuestion}
+
+## RULES:
+- Ask ONE question at a time — the next unanswered one only.
+- Never re-ask or rephrase anything marked ✅.
+- Accept loose language — map it to the closest valid enum value yourself.
+- Keep your message to 1-2 sentences. Be warm and concise.
+- Extract ANY profile info mentioned in the user's message, even if they answer multiple things at once.
+
+## Valid Enum Values:
 - skinType: "oily" | "dry" | "combination" | "normal" | "sensitive"
 - concerns: subset of ["acne", "pigmentation", "aging", "redness", "dryness"]
 - sensitivity: "highly_sensitive" | "moderately_sensitive" | "resilient" | "unpredictable"
 - goals: subset of ["clear_acne", "smooth_lines", "fade_spots", "calm_irritation", "intense_hydration"]
 
-## Response Format (strict JSON only):
+## Response — return ONLY this raw JSON, no markdown:
 {
-  "message": "Your conversational response — ask the NEXT unanswered question only.",
+  "message": "Your 1-2 sentence response",
   "extractedProfile": {
-    "skinType": "detected value or empty string",
-    "concerns": ["detected values or empty array"],
-    "sensitivity": "detected value or empty string",
-    "goals": ["detected values or empty array"]
+    "skinType": "${hasSkinType ? profile.skinType : 'fill if user answered, else empty string'}",
+    "concerns": ${hasConcerns ? JSON.stringify(profile.concerns) : '[]'},
+    "sensitivity": "${hasSensitivity ? profile.sensitivity : 'fill if user answered, else empty string'}",
+    "goals": ${hasGoals ? JSON.stringify(profile.goals) : '[]'}
   },
-  "suggestions": ["3-4 short clickable quick-reply chips relevant to the CURRENT question"],
-  "isComplete": false
+  "suggestions": ["chip 1", "chip 2", "chip 3"],
+  "isComplete": ${hasSkinType && hasConcerns && hasSensitivity && hasGoals}
+}`;
 }
-Return raw JSON only. No markdown, no code fences.`;
 
 @Injectable()
 export class AiQuizService {
@@ -71,7 +99,7 @@ export class AiQuizService {
   constructor(private readonly groqService: GroqService) { }
 
   async processChat(dto: ChatRequestDto): Promise<ChatResponseDto> {
-    const fallbackProfile = {
+    const currentProfile = {
       skinType: dto?.currentProfile?.skinType || '',
       concerns: dto?.currentProfile?.concerns || [],
       sensitivity: dto?.currentProfile?.sensitivity || '',
@@ -84,7 +112,7 @@ export class AiQuizService {
       return {
         message:
           '⚠️ Groq API key is missing. Please set your `GROQ_API_KEY` in `DayStarBackend/.env` (or environment variables) and restart the backend server!',
-        extractedProfile: fallbackProfile,
+        extractedProfile: currentProfile,
         suggestions: ['Add GROQ_API_KEY'],
         isComplete: false,
       };
@@ -107,8 +135,11 @@ export class AiQuizService {
           content: m.content,
         }));
 
+      // Dynamic system prompt that tells the model exactly what's filled and what to ask next
+      const systemPrompt = buildSystemPrompt(currentProfile);
+
       const messages: GroqChatMessage[] = [
-        { role: 'system', content: SKINCARE_SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         ...conversationMessages,
       ];
 
@@ -120,28 +151,31 @@ export class AiQuizService {
         isComplete?: boolean;
       }>(messages);
 
+      // Merge extracted profile on top of current profile (never discard existing values)
+      const mergedProfile = {
+        skinType: parsed.extractedProfile?.skinType || currentProfile.skinType,
+        concerns:
+          parsed.extractedProfile?.concerns?.length
+            ? Array.from(new Set([...currentProfile.concerns, ...parsed.extractedProfile.concerns]))
+            : currentProfile.concerns,
+        sensitivity: parsed.extractedProfile?.sensitivity || currentProfile.sensitivity,
+        goals:
+          parsed.extractedProfile?.goals?.length
+            ? Array.from(new Set([...currentProfile.goals, ...(parsed.extractedProfile.goals ?? [])]))
+            : currentProfile.goals,
+      };
+
       return {
-        message:
-          parsed.message ||
-          'Thank you for sharing! Could you tell me if your skin reacts easily to new ingredients?',
-        extractedProfile: {
-          skinType: parsed.extractedProfile?.skinType || fallbackProfile.skinType,
-          concerns: parsed.extractedProfile?.concerns || fallbackProfile.concerns,
-          sensitivity: parsed.extractedProfile?.sensitivity || fallbackProfile.sensitivity,
-          goals: parsed.extractedProfile?.goals || fallbackProfile.goals,
-        },
-        suggestions: parsed.suggestions || [
-          'Sensitive skin',
-          'Resilient skin',
-          'Occasional breakouts',
-        ],
+        message: parsed.message || 'Got it! What are your main skin concerns?',
+        extractedProfile: mergedProfile,
+        suggestions: parsed.suggestions || ['Oily', 'Dry', 'Combination', 'Sensitive'],
         isComplete: Boolean(parsed.isComplete),
       };
     } catch (err) {
       this.logger.error('Error in Groq AI processChat:', err);
       return {
         message: `⚠️ Groq AI Request Failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please verify backend network connectivity and your GROQ_API_KEY.`,
-        extractedProfile: fallbackProfile,
+        extractedProfile: currentProfile,
         suggestions: ['Retry'],
         isComplete: false,
       };
