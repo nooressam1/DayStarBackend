@@ -36,19 +36,19 @@ export class AiQuizService {
 
   async processChat(dto: ChatRequestDto): Promise<ChatResponseDto> {
     const groqApiKey = this.configService.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
-    const modelName = this.configService.get<string>('GROQ_MODEL') || process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
+    const configuredModel = this.configService.get<string>('GROQ_MODEL') || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
     if (!groqApiKey || groqApiKey.trim() === '') {
       this.logger.warn('GROQ_API_KEY not found in environment.');
       return {
-        message: "⚠️ Groq API key is missing. Please set your `GROQ_API_KEY` in `DayStarBackend/.env` and restart the backend server to activate Groq AI!",
+        message: "⚠️ Groq API key is missing. Please set your `GROQ_API_KEY` in `DayStarBackend/.env` (or environment variables) and restart the backend server!",
         extractedProfile: {
           skinType: dto?.currentProfile?.skinType || '',
           concerns: dto?.currentProfile?.concerns || [],
           sensitivity: dto?.currentProfile?.sensitivity || '',
           goals: dto?.currentProfile?.goals || [],
         },
-        suggestions: ["Add GROQ_API_KEY in .env"],
+        suggestions: ["Add GROQ_API_KEY"],
         isComplete: false,
       };
     }
@@ -96,32 +96,53 @@ Return raw JSON object only.`,
 
       const payloadMessages: ChatMessagePayload[] = [systemPrompt, ...formattedMessages];
 
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${groqApiKey.trim()}`,
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: payloadMessages,
-          temperature: 0.7,
-          response_format: { type: 'json_object' }
-        }),
-      });
+      // Fallback chain of Groq model identifiers
+      const candidateModels = Array.from(new Set([
+        configuredModel,
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'llama3-70b-8192',
+        'mixtral-8x7b-32768'
+      ]));
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        this.logger.error(`Groq API error status ${res.status}: ${errorText}`);
+      let lastErrorText = '';
+      let res: Response | null = null;
+
+      for (const modelCandidate of candidateModels) {
+        this.logger.log(`Attempting Groq chat request using model: ${modelCandidate}`);
+        res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqApiKey.trim()}`,
+          },
+          body: JSON.stringify({
+            model: modelCandidate,
+            messages: payloadMessages,
+            temperature: 0.7,
+            response_format: { type: 'json_object' }
+          }),
+        });
+
+        if (res.ok) {
+          this.logger.log(`Successfully connected using model: ${modelCandidate}`);
+          break;
+        } else {
+          lastErrorText = await res.text();
+          this.logger.warn(`Groq API model ${modelCandidate} returned status ${res.status}: ${lastErrorText}`);
+        }
+      }
+
+      if (!res || !res.ok) {
         return {
-          message: `⚠️ Groq API Connection Error (Status ${res.status}). Please check that your GROQ_API_KEY in DayStarBackend/.env is valid.`,
+          message: `⚠️ Groq API Error (${res?.status || 404}). Error details: ${lastErrorText || 'Could not connect to any Groq model'}. Please verify your GROQ_API_KEY permissions on Groq Cloud.`,
           extractedProfile: {
             skinType: dto?.currentProfile?.skinType || '',
             concerns: dto?.currentProfile?.concerns || [],
             sensitivity: dto?.currentProfile?.sensitivity || '',
             goals: dto?.currentProfile?.goals || [],
           },
-          suggestions: ["Check GROQ_API_KEY"],
+          suggestions: ["Verify GROQ_API_KEY"],
           isComplete: false,
         };
       }
