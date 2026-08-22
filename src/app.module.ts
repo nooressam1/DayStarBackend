@@ -23,6 +23,7 @@ import { CartModule } from './cart/cart.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { JobsModule } from './jobs/jobs.module';
+import { GroqModule } from './groq/groq.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { JobsModule } from './jobs/jobs.module';
     CartModule,
     FavoritesModule,
     JobsModule,
+    GroqModule,
   ],
   controllers: [ProductController, discountController, categoryController, ContactSubmissionsController, CustomersController],
   providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService, CustomersService],
