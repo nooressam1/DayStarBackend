@@ -37,9 +37,19 @@ export class AiQuizService {
   async processChat(dto: ChatRequestDto): Promise<ChatResponseDto> {
     const groqApiKey = this.configService.get<string>('GROQ_API_KEY') || process.env.GROQ_API_KEY;
 
-    if (!groqApiKey) {
+    if (!groqApiKey || groqApiKey.trim() === '') {
       this.logger.warn('GROQ_API_KEY not found in environment.');
-      throw new Error('GROQ_API_KEY is not configured on the backend.');
+      return {
+        message: "⚠️ Groq API key is missing. Please set your `GROQ_API_KEY` in `DayStarBackend/.env` and restart the backend server to activate Groq AI!",
+        extractedProfile: {
+          skinType: dto.currentProfile?.skinType || '',
+          concerns: dto.currentProfile?.concerns || [],
+          sensitivity: dto.currentProfile?.sensitivity || '',
+          goals: dto.currentProfile?.goals || [],
+        },
+        suggestions: ["Add GROQ_API_KEY in .env"],
+        isComplete: false,
+      };
     }
 
     try {
@@ -76,7 +86,7 @@ Return raw JSON object only.`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${groqApiKey}`,
+          'Authorization': `Bearer ${groqApiKey.trim()}`,
         },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
@@ -89,14 +99,34 @@ Return raw JSON object only.`,
       if (!res.ok) {
         const errorText = await res.text();
         this.logger.error(`Groq API error status ${res.status}: ${errorText}`);
-        throw new Error(`Groq API returned error status ${res.status}: ${errorText}`);
+        return {
+          message: `⚠️ Groq API Connection Error (Status ${res.status}). Please check that your GROQ_API_KEY in DayStarBackend/.env is valid.`,
+          extractedProfile: {
+            skinType: dto.currentProfile?.skinType || '',
+            concerns: dto.currentProfile?.concerns || [],
+            sensitivity: dto.currentProfile?.sensitivity || '',
+            goals: dto.currentProfile?.goals || [],
+          },
+          suggestions: ["Check GROQ_API_KEY"],
+          isComplete: false,
+        };
       }
 
       const data = await res.json();
       const contentStr = data.choices?.[0]?.message?.content;
 
       if (!contentStr) {
-        throw new Error('Groq API returned an empty response content.');
+        return {
+          message: "Empty response received from Groq AI. Please try sending your message again.",
+          extractedProfile: {
+            skinType: dto.currentProfile?.skinType || '',
+            concerns: dto.currentProfile?.concerns || [],
+            sensitivity: dto.currentProfile?.sensitivity || '',
+            goals: dto.currentProfile?.goals || [],
+          },
+          suggestions: ["Try Again"],
+          isComplete: false,
+        };
       }
 
       const parsed = JSON.parse(contentStr);
@@ -114,7 +144,17 @@ Return raw JSON object only.`,
       };
     } catch (err) {
       this.logger.error('Error in Groq AI processChat:', err);
-      throw err;
+      return {
+        message: `⚠️ Groq AI Request Failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please verify backend network connectivity and your GROQ_API_KEY.`,
+        extractedProfile: {
+          skinType: dto.currentProfile?.skinType || '',
+          concerns: dto.currentProfile?.concerns || [],
+          sensitivity: dto.currentProfile?.sensitivity || '',
+          goals: dto.currentProfile?.goals || [],
+        },
+        suggestions: ["Retry"],
+        isComplete: false,
+      };
     }
   }
 }
