@@ -2,7 +2,7 @@ export interface SkinProfile {
     id: string;
     created_at: string;
     user_id: string | null;
-    skin_type: string;
+    skinType: 'oily' | 'dry' | 'combination' | 'normal' | 'sensitive';
     concern: string[];
     sensitivity: string;
 }

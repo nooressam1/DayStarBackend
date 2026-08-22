@@ -27,8 +27,8 @@ export class RoutineAssemblerService {
     }
     async scoreProduct(product: Product, profile: SkinProfile): Promise<number> {
         let score = 0
-        if (product.skin_type.includes(profile.skin_type)
-        ) {
+        const userSkinType = profile.skinType || (profile as any).skin_type;
+        if (userSkinType && product.skin_type.includes(userSkinType)) {
             score += 10;
         }
         if (product.concern?.filter((c) => profile.concern.includes(c))) {

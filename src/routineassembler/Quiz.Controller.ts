@@ -3,6 +3,7 @@ import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { QuizAnswersDto } from './QuizAnswersDto';
 import { SkinProfileService } from './skinprofile.service';
 import { RoutineAssemblerService } from './routineassembler.service';
+import { AiQuizService, ChatRequestDto } from './ai-quiz.service';
 import { CurrentUser } from 'src/auth/current-user.decorator';
 import { OptionalSupabaseAuthGuard } from '../auth/optional-supabase-auth.guard';
 
@@ -11,7 +12,13 @@ export class QuizController {
     constructor(
         private readonly skinProfileService: SkinProfileService,
         private readonly routineAssembler: RoutineAssemblerService,
+        private readonly aiQuizService: AiQuizService,
     ) { }
+
+    @Post('chat')
+    async chatWithAi(@Body() body: ChatRequestDto) {
+        return this.aiQuizService.processChat(body);
+    }
 
     @Post('submit')
     @UseGuards(OptionalSupabaseAuthGuard)
