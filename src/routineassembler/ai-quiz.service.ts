@@ -38,63 +38,150 @@ export interface ChatResponseDto {
   isComplete: boolean;
 }
 
-function buildSkinTypePrompt(knownSkinType: string): string {
+function buildConsultationPrompt(currentProfile: {
+  skinType?: string;
+  concerns?: string[];
+  sensitivity?: string;
+  goals?: string[];
+}): string {
+  const skinType = currentProfile?.skinType || '';
+  const concerns = Array.isArray(currentProfile?.concerns) ? currentProfile.concerns : [];
+  const sensitivity = currentProfile?.sensitivity || '';
+  const goals = Array.isArray(currentProfile?.goals) ? currentProfile.goals : [];
+
+  let currentStage = 'SKIN_TYPE';
+  if (!skinType) {
+    currentStage = 'SKIN_TYPE';
+  } else if (concerns.length === 0) {
+    currentStage = 'CONCERNS';
+  } else if (!sensitivity) {
+    currentStage = 'SENSITIVITY';
+  } else {
+    currentStage = 'COMPLETE';
+  }
+
   return `You are an expert Aesthetician & Skincare Consultant for DayStar Skincare.
-Your only task right now is to identify the user's skin type from their messages.
+Your mission is to guide the user step-by-step through a friendly consultation to identify their Skin Type, Concerns, and Sensitivity so we can assemble their custom skincare routine.
 
-Valid Skin Types:
-- "dry" (feels tight, flaky, lacks moisture)
-- "oily" (shiny, greasy, prone to excess sebum all over)
-- "combination" (shiny T-zone on forehead/nose, but normal or dry on cheeks)
-- "sensitive" (easily turns red, stings, reacts to products)
-- "normal" (balanced, neither excessively dry nor oily)
+CURRENT DETECTED PROFILE:
+- Skin Type: ${skinType ? `"${skinType}"` : 'null (needed)'}
+- Primary Concerns: ${concerns.length > 0 ? JSON.stringify(concerns) : 'null (needed)'}
+- Sensitivity: ${sensitivity ? `"${sensitivity}"` : 'null (needed)'}
+- Goals: ${goals.length > 0 ? JSON.stringify(goals) : '[]'}
+- ACTIVE FOCUS STAGE: ${currentStage}
 
-CURRENT KNOWN SKIN TYPE: ${knownSkinType ? `"${knownSkinType}"` : 'null (not identified yet)'}
+CONSULTATION STAGES & PROGRESSION:
+1. STAGE "SKIN_TYPE" (if Skin Type is null):
+   - Identify user's skin type from: "dry" | "oily" | "combination" | "sensitive" | "normal".
+   - If identified, set "skinType", acknowledge it warmly in "message", and immediately ask the NEXT question (Stage 2 - Concerns): "What are your main skin concerns (such as acne, dark spots, fine lines, redness, or dryness)?"
+   - In "suggestions", provide: ["Acne & Breakouts", "Dark Spots / Pigmentation", "Fine Lines & Aging", "Redness & Irritation", "Dullness & Dryness"]
 
-Instructions:
-1. If the user mentions how their skin feels or states their skin type:
-   - Set "skinType" to the matching enum ("dry", "oily", "combination", "sensitive", or "normal").
-   - Write a friendly 1-2 sentence response in "message" acknowledging their skin type (e.g. "Got it, dry skin! Let's find products that deeply hydrate and restore your skin barrier.").
-   - In "suggestions", provide 3-4 skin concerns they might want to address next (e.g. ["Acne & Blemishes", "Dark Spots", "Anti-Aging", "Redness"]).
-2. If the user's message is a greeting (e.g., "hi", "hello"), vague, or does not indicate skin type yet:
-   - Set "skinType" to ""
-   - In "message", warmly greet them and ask how their skin feels or what skin type they have.
-   - In "suggestions", provide ["Oily", "Dry", "Combination", "Normal", "Sensitive"].
+2. STAGE "CONCERNS" (if Skin Type is known, but Concerns is empty):
+   - Extract 1 or more concerns into "concerns" array: valid items are "acne", "pigmentation", "aging", "redness", "dryness".
+   - Keep previously identified "skinType".
+   - If identified, acknowledge their concerns in "message" and immediately ask the NEXT question (Stage 3 - Sensitivity): "How does your skin typically react to active ingredients or new skincare products?"
+   - In "suggestions", provide: ["Resilient (Rarely Reacts)", "Moderately Sensitive", "Very Sensitive (Easily Irritated)"]
 
-CRITICAL: You MUST ALWAYS respond in pure JSON format matching this schema:
+3. STAGE "SENSITIVITY" (if Skin Type and Concerns are known, but Sensitivity is null):
+   - Identify sensitivity from: "resilient" | "moderately_sensitive" | "highly_sensitive".
+   - Keep previous "skinType" and "concerns".
+   - If identified, set "sensitivity", celebrate completing their profile in "message", and announce that their custom routine is ready to assemble!
+   - In "suggestions", provide: ["✨ Generate My Routine", "Clear Breakouts", "Fade Dark Spots", "Anti-Aging & Firming"]
+
+4. STAGE "COMPLETE" (when Skin Type, Concerns, and Sensitivity are all identified):
+   - Enthusiastically summarize their complete profile in "message" (e.g. "We have everything! Your combination skin profile with acne & dark spot focus is ready.")
+   - In "suggestions", provide: ["✨ Generate My Routine"]
+
+CRITICAL: ALWAYS respond strictly with a valid JSON object matching this schema (no markdown, no backticks):
 {
-  "message": "string",
+  "message": "Friendly response acknowledging user's input and asking the next question",
   "skinType": "dry" | "oily" | "combination" | "sensitive" | "normal" | "",
-  "suggestions": ["string"]
+  "concerns": ["acne", "pigmentation", "aging", "redness", "dryness"],
+  "sensitivity": "resilient" | "moderately_sensitive" | "highly_sensitive" | "",
+  "goals": ["clear_acne", "smooth_lines", "fade_spots", "calm_irritation", "intense_hydration"],
+  "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
 }
 
-Example 1 (User Greeting):
-User: "Hello"
+Example 1 (User mentions Skin Type):
+User: "I have combination skin"
 Response:
 {
-  "message": "Hello! I'm your DayStar AI Skincare Consultant. How does your skin feel throughout the day?",
-  "skinType": "",
-  "suggestions": ["Oily", "Dry", "Combination", "Normal", "Sensitive"]
-}
-
-Example 2 (User describes skin):
-User: "My forehead is shiny and oily but my cheeks are dry"
-Response:
-{
-  "message": "That describes combination skin! Let's build a balanced routine to hydrate your cheeks while controlling T-zone shine.",
+  "message": "Got it, combination skin! To tailor the right active products for you, what are your primary skin concerns right now?",
   "skinType": "combination",
-  "suggestions": ["Acne & Blemishes", "Enlarged Pores", "Hyperpigmentation", "Dullness"]
+  "concerns": [],
+  "sensitivity": "",
+  "goals": [],
+  "suggestions": ["Acne & Breakouts", "Dark Spots / Pigmentation", "Fine Lines & Aging", "Redness & Irritation", "Dullness & Dryness"]
+}
+
+Example 2 (User mentions Concerns):
+User: "Acne and dark spots"
+Response:
+{
+  "message": "Understood, targeting acne and brightening dark spots! Next, how easily does your skin react to new skincare products or active ingredients?",
+  "skinType": "combination",
+  "concerns": ["acne", "pigmentation"],
+  "sensitivity": "",
+  "goals": [],
+  "suggestions": ["Resilient (Rarely Reacts)", "Moderately Sensitive", "Very Sensitive (Easily Irritated)"]
+}
+
+Example 3 (User mentions Sensitivity):
+User: "My skin is resilient and rarely reacts"
+Response:
+{
+  "message": "Perfect! Your skincare profile is complete. Click below to assemble and view your tailored DayStar skincare routine!",
+  "skinType": "combination",
+  "concerns": ["acne", "pigmentation"],
+  "sensitivity": "resilient",
+  "goals": ["clear_acne", "fade_spots"],
+  "suggestions": ["✨ Generate My Routine"]
 }`;
 }
 
-// Fallback keyword matcher for skin type
+// Fallback keyword matchers
 function detectSkinTypeKeyword(text: string): string {
   const lower = text.toLowerCase();
   if (lower.includes('combination') || lower.includes('t-zone') || lower.includes('t zone')) return 'combination';
   if (lower.includes('dry') || lower.includes('tight') || lower.includes('flak')) return 'dry';
   if (lower.includes('oily') || lower.includes('greas') || lower.includes('shiny all over')) return 'oily';
-  if (lower.includes('sensitive') || lower.includes('stings') || lower.includes('irritat') || lower.includes('redness')) return 'sensitive';
+  if (lower.includes('sensitive') && !lower.includes('moderately') && !lower.includes('resilient')) return 'sensitive';
   if (lower.includes('normal') || lower.includes('balanced')) return 'normal';
+  return '';
+}
+
+function detectConcernsKeywords(text: string): string[] {
+  const lower = text.toLowerCase();
+  const found: string[] = [];
+  if (lower.includes('acne') || lower.includes('breakout') || lower.includes('pimple') || lower.includes('blemish') || lower.includes('pore') || lower.includes('blackhead')) {
+    found.push('acne');
+  }
+  if (lower.includes('pigment') || lower.includes('dark spot') || lower.includes('sun spot') || lower.includes('melasma') || lower.includes('uneven') || lower.includes('discolor')) {
+    found.push('pigmentation');
+  }
+  if (lower.includes('aging') || lower.includes('wrinkle') || lower.includes('fine line') || lower.includes('firm') || lower.includes('sagging')) {
+    found.push('aging');
+  }
+  if (lower.includes('redness') || lower.includes('rosacea') || lower.includes('irritat') || lower.includes('inflam')) {
+    found.push('redness');
+  }
+  if (lower.includes('dry') || lower.includes('dull') || lower.includes('dehydrat') || lower.includes('radiance') || lower.includes('flak')) {
+    found.push('dryness');
+  }
+  return found;
+}
+
+function detectSensitivityKeyword(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('very sensitive') || lower.includes('highly sensitive') || lower.includes('burns') || lower.includes('stings') || lower.includes('easily irritated')) {
+    return 'highly_sensitive';
+  }
+  if (lower.includes('moderately') || lower.includes('moderate') || lower.includes('occasional') || lower.includes('sometimes')) {
+    return 'moderately_sensitive';
+  }
+  if (lower.includes('resilient') || lower.includes('rarely') || lower.includes('not sensitive') || lower.includes('tough') || lower.includes('never reacts')) {
+    return 'resilient';
+  }
   return '';
 }
 
@@ -145,12 +232,19 @@ export class AiQuizService {
         content: m.content,
       }));
 
-    const latestUserMsg = conversationMessages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
-    const fallbackType = detectSkinTypeKeyword(latestUserMsg);
+    const latestUserMsg = conversationMessages.filter((m) => m.role === 'user').slice(-1)[0]?.content || '';
+    const fallbackSkinType = detectSkinTypeKeyword(latestUserMsg);
+    const fallbackConcerns = detectConcernsKeywords(latestUserMsg);
+    const fallbackSensitivity = detectSensitivityKeyword(latestUserMsg);
 
     try {
-      // System prompt focused strictly on skin type
-      const systemPrompt = buildSkinTypePrompt(currentSkinType);
+      // Dynamic system prompt tailored to current consultation stage
+      const systemPrompt = buildConsultationPrompt({
+        skinType: currentSkinType,
+        concerns: currentConcerns,
+        sensitivity: currentSensitivity,
+        goals: currentGoals,
+      });
 
       const messages: GroqChatMessage[] = [
         { role: 'system', content: systemPrompt },
@@ -161,55 +255,105 @@ export class AiQuizService {
       const parsed = await this.groqService.chatCompletionJson<{
         message?: string;
         skinType?: string;
+        concerns?: string[];
+        sensitivity?: string;
+        goals?: string[];
         suggestions?: string[];
       }>(messages);
 
       console.log('🤖 [AiQuizService] Groq Raw Response:', JSON.stringify(parsed, null, 2));
 
-      // Resolve skin type: LLM parsed value -> fallback keyword matcher -> current value
-      const detectedSkinType = parsed.skinType || fallbackType || currentSkinType;
+      // Resolve extracted fields
+      const detectedSkinType = parsed.skinType || fallbackSkinType || currentSkinType;
+
+      const newConcerns = Array.isArray(parsed.concerns) && parsed.concerns.length > 0
+        ? parsed.concerns
+        : fallbackConcerns;
+      const mergedConcerns = Array.from(new Set([...currentConcerns, ...newConcerns]));
+
+      const detectedSensitivity = parsed.sensitivity || fallbackSensitivity || currentSensitivity;
+
+      const newGoals = Array.isArray(parsed.goals) && parsed.goals.length > 0
+        ? parsed.goals
+        : [];
+      const mergedGoals = Array.from(new Set([...currentGoals, ...newGoals]));
 
       const mergedProfile = {
         skinType: detectedSkinType,
-        concerns: currentConcerns,
-        sensitivity: currentSensitivity,
-        goals: currentGoals,
+        concerns: mergedConcerns,
+        sensitivity: detectedSensitivity,
+        goals: mergedGoals,
       };
 
-      console.log('📤 [AiQuizService] Resolved Skin Type:', detectedSkinType);
-      console.log('📤 [AiQuizService] Returning Merged Profile:', JSON.stringify(mergedProfile, null, 2));
+      const isComplete = Boolean(
+        detectedSkinType &&
+        mergedConcerns.length > 0 &&
+        detectedSensitivity,
+      );
+
+      // Determine smart suggestions based on next missing field
+      let defaultSuggestions: string[] = [];
+      if (!detectedSkinType) {
+        defaultSuggestions = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+      } else if (mergedConcerns.length === 0) {
+        defaultSuggestions = ['Acne & Breakouts', 'Dark Spots / Pigmentation', 'Fine Lines & Aging', 'Redness & Irritation', 'Dullness & Dryness'];
+      } else if (!detectedSensitivity) {
+        defaultSuggestions = ['Resilient (Rarely Reacts)', 'Moderately Sensitive', 'Very Sensitive (Easily Irritated)'];
+      } else {
+        defaultSuggestions = ['✨ Generate My Routine', 'Fade Dark Spots', 'Clear Breakouts', 'Deep Hydration'];
+      }
+
+      console.log('📤 [AiQuizService] Resolved Profile:', JSON.stringify(mergedProfile, null, 2));
 
       return {
-        message: parsed.message || (detectedSkinType ? `Got it, ${detectedSkinType} skin!` : "Could you tell me how your skin feels or what skin type you have?"),
+        message: parsed.message || (isComplete
+          ? 'Your skin profile is complete! Click below to view your tailored routine.'
+          : 'Thank you for sharing! Let us continue with the next step.'),
         extractedProfile: mergedProfile,
         suggestions: parsed.suggestions && parsed.suggestions.length > 0
           ? parsed.suggestions
-          : (detectedSkinType
-            ? ['Acne & Blemishes', 'Dark Spots', 'Anti-Aging', 'Dryness']
-            : ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive']),
-        isComplete: Boolean(detectedSkinType),
+          : defaultSuggestions,
+        isComplete,
       };
     } catch (err) {
       this.logger.error('Error in Groq AI processChat:', err);
 
-      // Fallback gracefully so the user experience is never interrupted
-      const detectedSkinType = fallbackType || currentSkinType;
+      // Resilient fallback logic
+      const detectedSkinType = fallbackSkinType || currentSkinType;
+      const mergedConcerns = Array.from(new Set([...currentConcerns, ...fallbackConcerns]));
+      const detectedSensitivity = fallbackSensitivity || currentSensitivity;
+
       const mergedProfile = {
         skinType: detectedSkinType,
-        concerns: currentConcerns,
-        sensitivity: currentSensitivity,
+        concerns: mergedConcerns,
+        sensitivity: detectedSensitivity,
         goals: currentGoals,
       };
 
+      const isComplete = Boolean(detectedSkinType && mergedConcerns.length > 0 && detectedSensitivity);
+
+      let fallbackMessage = "I'm ready to help! Could you describe how your skin feels (e.g. oily, dry, normal, sensitive, or combination)?";
+      let fallbackSuggestions = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+
+      if (!detectedSkinType) {
+        fallbackMessage = "What is your skin type or how does your skin feel throughout the day?";
+        fallbackSuggestions = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+      } else if (mergedConcerns.length === 0) {
+        fallbackMessage = `Got it, ${detectedSkinType} skin! What are your primary skin concerns right now?`;
+        fallbackSuggestions = ['Acne & Breakouts', 'Dark Spots / Pigmentation', 'Fine Lines & Aging', 'Redness & Irritation', 'Dullness & Dryness'];
+      } else if (!detectedSensitivity) {
+        fallbackMessage = "Understood! How does your skin typically react to new skincare products or active ingredients?";
+        fallbackSuggestions = ['Resilient (Rarely Reacts)', 'Moderately Sensitive', 'Very Sensitive (Easily Irritated)'];
+      } else {
+        fallbackMessage = "Great! Your skin profile is ready. Click below to generate your custom routine.";
+        fallbackSuggestions = ['✨ Generate My Routine'];
+      }
+
       return {
-        message: detectedSkinType
-          ? `Got it, looks like you have ${detectedSkinType} skin! What are your primary skin concerns?`
-          : "I'm ready to help! Could you describe how your skin feels (e.g. oily, dry, normal, sensitive, or combination)?",
+        message: fallbackMessage,
         extractedProfile: mergedProfile,
-        suggestions: detectedSkinType
-          ? ['Acne & Blemishes', 'Dark Spots', 'Anti-Aging', 'Hydration']
-          : ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'],
-        isComplete: Boolean(detectedSkinType),
+        suggestions: fallbackSuggestions,
+        isComplete,
       };
     }
   }
