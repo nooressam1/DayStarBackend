@@ -1,4 +1,4 @@
-import { IsString, IsArray } from 'class-validator';
+import { IsString, IsArray, IsOptional } from 'class-validator';
 
 export class QuizAnswersDto {
     @IsString()
@@ -10,4 +10,8 @@ export class QuizAnswersDto {
 
     @IsString()
     sensitivity: string;
+
+    @IsOptional()
+    @IsString()
+    sunExposure?: string;
 }

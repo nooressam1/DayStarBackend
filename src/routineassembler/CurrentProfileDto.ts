@@ -15,6 +15,10 @@ export class CurrentProfileDto {
   sensitivity?: string;
 
   @IsOptional()
+  @IsString()
+  sunExposure?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   goals?: string[];

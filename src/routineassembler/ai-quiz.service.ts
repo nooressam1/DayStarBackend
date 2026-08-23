@@ -32,6 +32,7 @@ export interface ChatResponseDto {
     skinType: string;
     concerns: string[];
     sensitivity: string;
+    sunExposure: string;
     goals: string[];
   };
   suggestions: string[];
@@ -42,11 +43,13 @@ function buildConsultationPrompt(currentProfile: {
   skinType?: string;
   concerns?: string[];
   sensitivity?: string;
+  sunExposure?: string;
   goals?: string[];
 }): string {
   const skinType = currentProfile?.skinType || '';
   const concerns = Array.isArray(currentProfile?.concerns) ? currentProfile.concerns : [];
   const sensitivity = currentProfile?.sensitivity || '';
+  const sunExposure = currentProfile?.sunExposure || '';
   const goals = Array.isArray(currentProfile?.goals) ? currentProfile.goals : [];
 
   let currentStage = 'SKIN_TYPE';
@@ -56,17 +59,20 @@ function buildConsultationPrompt(currentProfile: {
     currentStage = 'CONCERNS';
   } else if (!sensitivity) {
     currentStage = 'SENSITIVITY';
+  } else if (!sunExposure) {
+    currentStage = 'SUN_EXPOSURE';
   } else {
     currentStage = 'COMPLETE';
   }
 
   return `You are an expert Aesthetician & Skincare Consultant for DayStar Skincare.
-Your mission is to guide the user step-by-step through a friendly consultation to identify their Skin Type, Concerns, and Sensitivity so we can assemble their custom skincare routine.
+Your mission is to guide the user step-by-step through a friendly consultation to identify their Skin Type, Concerns, Sensitivity, and Sun Exposure level so we can assemble their custom skincare routine.
 
 CURRENT DETECTED PROFILE:
 - Skin Type: ${skinType ? `"${skinType}"` : 'null (needed)'}
 - Primary Concerns: ${concerns.length > 0 ? JSON.stringify(concerns) : 'null (needed)'}
 - Sensitivity: ${sensitivity ? `"${sensitivity}"` : 'null (needed)'}
+- Sun Exposure: ${sunExposure ? `"${sunExposure}"` : 'null (needed)'}
 - Goals: ${goals.length > 0 ? JSON.stringify(goals) : '[]'}
 - ACTIVE FOCUS STAGE: ${currentStage}
 
@@ -85,11 +91,17 @@ CONSULTATION STAGES & PROGRESSION:
 3. STAGE "SENSITIVITY" (if Skin Type and Concerns are known, but Sensitivity is null):
    - Identify sensitivity from: "resilient" | "moderately_sensitive" | "highly_sensitive".
    - Keep previous "skinType" and "concerns".
-   - If identified, set "sensitivity", celebrate completing their profile in "message", and announce that their custom routine is ready to assemble!
-   - In "suggestions", provide: ["✨ Generate My Routine", "Clear Breakouts", "Fade Dark Spots", "Anti-Aging & Firming"]
+   - If identified, acknowledge sensitivity in "message" and immediately ask the NEXT question (Stage 4 - Sun Exposure): "What is your daily sun exposure like?"
+   - In "suggestions", provide: ["High (Hours in Direct Sun)", "Moderate (Daily Commute & Walks)", "Minimal (Mostly Indoors)"]
 
-4. STAGE "COMPLETE" (when Skin Type, Concerns, and Sensitivity are all identified):
-   - Enthusiastically summarize their complete profile in "message" (e.g. "We have everything! Your combination skin profile with acne & dark spot focus is ready.")
+4. STAGE "SUN_EXPOSURE" (if Skin Type, Concerns, and Sensitivity are known, but Sun Exposure is null):
+   - Identify sun exposure from: "high" | "moderate" | "minimal".
+   - Keep previous "skinType", "concerns", and "sensitivity".
+   - If identified, set "sunExposure", celebrate completing their consultation in "message", and announce that their custom routine is ready to assemble!
+   - In "suggestions", provide: ["✨ Generate My Routine", "Deep Hydration", "Brightening", "Clear Breakouts"]
+
+5. STAGE "COMPLETE" (when all 4 fields are identified):
+   - Enthusiastically summarize their complete profile in "message" (e.g. "We have everything! Your combination skin profile with moderate sun exposure and dark spot focus is ready.")
    - In "suggestions", provide: ["✨ Generate My Routine"]
 
 CRITICAL: ALWAYS respond strictly with a valid JSON object matching this schema (no markdown, no backticks):
@@ -98,6 +110,7 @@ CRITICAL: ALWAYS respond strictly with a valid JSON object matching this schema 
   "skinType": "dry" | "oily" | "combination" | "sensitive" | "normal" | "",
   "concerns": ["acne", "pigmentation", "aging", "redness", "dryness"],
   "sensitivity": "resilient" | "moderately_sensitive" | "highly_sensitive" | "",
+  "sunExposure": "high" | "moderate" | "minimal" | "",
   "goals": ["clear_acne", "smooth_lines", "fade_spots", "calm_irritation", "intense_hydration"],
   "suggestions": ["suggestion 1", "suggestion 2", "suggestion 3"]
 }
@@ -110,6 +123,7 @@ Response:
   "skinType": "combination",
   "concerns": [],
   "sensitivity": "",
+  "sunExposure": "",
   "goals": [],
   "suggestions": ["Acne & Breakouts", "Dark Spots / Pigmentation", "Fine Lines & Aging", "Redness & Irritation", "Dullness & Dryness"]
 }
@@ -122,18 +136,33 @@ Response:
   "skinType": "combination",
   "concerns": ["acne", "pigmentation"],
   "sensitivity": "",
+  "sunExposure": "",
   "goals": [],
   "suggestions": ["Resilient (Rarely Reacts)", "Moderately Sensitive", "Very Sensitive (Easily Irritated)"]
 }
 
 Example 3 (User mentions Sensitivity):
-User: "My skin is resilient and rarely reacts"
+User: "My skin is resilient"
+Response:
+{
+  "message": "Great to know your skin is resilient! How much daily sun exposure do you usually get?",
+  "skinType": "combination",
+  "concerns": ["acne", "pigmentation"],
+  "sensitivity": "resilient",
+  "sunExposure": "",
+  "goals": [],
+  "suggestions": ["High (Hours in Direct Sun)", "Moderate (Daily Commute & Walks)", "Minimal (Mostly Indoors)"]
+}
+
+Example 4 (User mentions Sun Exposure):
+User: "Moderate sun exposure"
 Response:
 {
   "message": "Perfect! Your skincare profile is complete. Click below to assemble and view your tailored DayStar skincare routine!",
   "skinType": "combination",
   "concerns": ["acne", "pigmentation"],
   "sensitivity": "resilient",
+  "sunExposure": "moderate",
   "goals": ["clear_acne", "fade_spots"],
   "suggestions": ["✨ Generate My Routine"]
 }`;
@@ -185,6 +214,20 @@ function detectSensitivityKeyword(text: string): string {
   return '';
 }
 
+function detectSunExposureKeyword(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('high') || lower.includes('hours in direct') || lower.includes('lots of sun') || lower.includes('outdoors for hours') || lower.includes('beach') || lower.includes('sunny')) {
+    return 'high';
+  }
+  if (lower.includes('moderate') || lower.includes('commute') || lower.includes('walks') || lower.includes('some time outdoor') || lower.includes('some sun')) {
+    return 'moderate';
+  }
+  if (lower.includes('minimal') || lower.includes('indoor') || lower.includes('desk') || lower.includes('rarely outdoor') || lower.includes('little sun')) {
+    return 'minimal';
+  }
+  return '';
+}
+
 @Injectable()
 export class AiQuizService {
   private readonly logger = new Logger(AiQuizService.name);
@@ -197,6 +240,7 @@ export class AiQuizService {
     const currentSkinType = dto?.currentProfile?.skinType || '';
     const currentConcerns = Array.isArray(dto?.currentProfile?.concerns) ? dto.currentProfile.concerns : [];
     const currentSensitivity = dto?.currentProfile?.sensitivity || '';
+    const currentSunExposure = dto?.currentProfile?.sunExposure || '';
     const currentGoals = Array.isArray(dto?.currentProfile?.goals) ? dto.currentProfile.goals : [];
 
     // Check if Groq is configured
@@ -209,6 +253,7 @@ export class AiQuizService {
           skinType: currentSkinType,
           concerns: currentConcerns,
           sensitivity: currentSensitivity,
+          sunExposure: currentSunExposure,
           goals: currentGoals,
         },
         suggestions: ['Add GROQ_API_KEY'],
@@ -236,6 +281,7 @@ export class AiQuizService {
     const fallbackSkinType = detectSkinTypeKeyword(latestUserMsg);
     const fallbackConcerns = detectConcernsKeywords(latestUserMsg);
     const fallbackSensitivity = detectSensitivityKeyword(latestUserMsg);
+    const fallbackSunExposure = detectSunExposureKeyword(latestUserMsg);
 
     try {
       // Dynamic system prompt tailored to current consultation stage
@@ -243,6 +289,7 @@ export class AiQuizService {
         skinType: currentSkinType,
         concerns: currentConcerns,
         sensitivity: currentSensitivity,
+        sunExposure: currentSunExposure,
         goals: currentGoals,
       });
 
@@ -257,6 +304,7 @@ export class AiQuizService {
         skinType?: string;
         concerns?: string[];
         sensitivity?: string;
+        sunExposure?: string;
         goals?: string[];
         suggestions?: string[];
       }>(messages);
@@ -272,6 +320,7 @@ export class AiQuizService {
       const mergedConcerns = Array.from(new Set([...currentConcerns, ...newConcerns]));
 
       const detectedSensitivity = parsed.sensitivity || fallbackSensitivity || currentSensitivity;
+      const detectedSunExposure = parsed.sunExposure || fallbackSunExposure || currentSunExposure;
 
       const newGoals = Array.isArray(parsed.goals) && parsed.goals.length > 0
         ? parsed.goals
@@ -282,13 +331,15 @@ export class AiQuizService {
         skinType: detectedSkinType,
         concerns: mergedConcerns,
         sensitivity: detectedSensitivity,
+        sunExposure: detectedSunExposure,
         goals: mergedGoals,
       };
 
       const isComplete = Boolean(
         detectedSkinType &&
         mergedConcerns.length > 0 &&
-        detectedSensitivity,
+        detectedSensitivity &&
+        detectedSunExposure,
       );
 
       // Determine smart suggestions based on next missing field
@@ -299,6 +350,8 @@ export class AiQuizService {
         defaultSuggestions = ['Acne & Breakouts', 'Dark Spots / Pigmentation', 'Fine Lines & Aging', 'Redness & Irritation', 'Dullness & Dryness'];
       } else if (!detectedSensitivity) {
         defaultSuggestions = ['Resilient (Rarely Reacts)', 'Moderately Sensitive', 'Very Sensitive (Easily Irritated)'];
+      } else if (!detectedSunExposure) {
+        defaultSuggestions = ['High (Hours in Direct Sun)', 'Moderate (Daily Commute & Walks)', 'Minimal (Mostly Indoors)'];
       } else {
         defaultSuggestions = ['✨ Generate My Routine', 'Fade Dark Spots', 'Clear Breakouts', 'Deep Hydration'];
       }
@@ -322,15 +375,17 @@ export class AiQuizService {
       const detectedSkinType = fallbackSkinType || currentSkinType;
       const mergedConcerns = Array.from(new Set([...currentConcerns, ...fallbackConcerns]));
       const detectedSensitivity = fallbackSensitivity || currentSensitivity;
+      const detectedSunExposure = fallbackSunExposure || currentSunExposure;
 
       const mergedProfile = {
         skinType: detectedSkinType,
         concerns: mergedConcerns,
         sensitivity: detectedSensitivity,
+        sunExposure: detectedSunExposure,
         goals: currentGoals,
       };
 
-      const isComplete = Boolean(detectedSkinType && mergedConcerns.length > 0 && detectedSensitivity);
+      const isComplete = Boolean(detectedSkinType && mergedConcerns.length > 0 && detectedSensitivity && detectedSunExposure);
 
       let fallbackMessage = "I'm ready to help! Could you describe how your skin feels (e.g. oily, dry, normal, sensitive, or combination)?";
       let fallbackSuggestions = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
@@ -344,6 +399,9 @@ export class AiQuizService {
       } else if (!detectedSensitivity) {
         fallbackMessage = "Understood! How does your skin typically react to new skincare products or active ingredients?";
         fallbackSuggestions = ['Resilient (Rarely Reacts)', 'Moderately Sensitive', 'Very Sensitive (Easily Irritated)'];
+      } else if (!detectedSunExposure) {
+        fallbackMessage = "What is your daily sun exposure level like (high, moderate, or minimal)?";
+        fallbackSuggestions = ['High (Hours in Direct Sun)', 'Moderate (Daily Commute & Walks)', 'Minimal (Mostly Indoors)'];
       } else {
         fallbackMessage = "Great! Your skin profile is ready. Click below to generate your custom routine.";
         fallbackSuggestions = ['✨ Generate My Routine'];

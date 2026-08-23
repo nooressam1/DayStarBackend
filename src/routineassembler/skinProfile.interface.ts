@@ -5,4 +5,5 @@ export interface SkinProfile {
     skinType: 'oily' | 'dry' | 'combination' | 'normal' | 'sensitive';
     concern: string[];
     sensitivity: string;
+    sunExposure?: string;
 }

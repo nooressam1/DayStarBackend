@@ -31,6 +31,7 @@ export class QuizController {
             skin_type: answers.skinType,
             concern: answers.concerns,
             sensitivity: answers.sensitivity,
+            sun_exposure: answers.sunExposure ?? null,
         };
         console.log("testing profile", profile);
 
