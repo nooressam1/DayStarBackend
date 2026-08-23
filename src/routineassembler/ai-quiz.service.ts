@@ -1,19 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { GroqService, GroqChatMessage } from '../groq/groq.service';
+import { CurrentProfileDto } from './CurrentProfileDto';
 
-export interface ChatMessagePayload {
+export { CurrentProfileDto };
+
+export class ChatMessagePayload {
+  @IsString()
   role: 'system' | 'user' | 'assistant';
+
+  @IsString()
   content: string;
 }
 
 export class ChatRequestDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChatMessagePayload)
   messages: ChatMessagePayload[];
-  currentProfile?: {
-    skinType?: string;
-    concerns?: string[];
-    sensitivity?: string;
-    goals?: string[];
-  };
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CurrentProfileDto)
+  currentProfile?: CurrentProfileDto;
 }
 
 export interface ChatResponseDto {
