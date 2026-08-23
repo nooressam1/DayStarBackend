@@ -42,21 +42,38 @@ Valid Skin Types:
 CURRENT KNOWN SKIN TYPE: ${knownSkinType ? `"${knownSkinType}"` : 'null (not identified yet)'}
 
 Instructions:
-1. Read the user's message.
-2. If the user indicates their skin type or describes how their skin feels:
+1. If the user mentions how their skin feels or states their skin type:
    - Set "skinType" to the matching enum ("dry", "oily", "combination", "sensitive", or "normal").
-   - Write a friendly 1-2 sentence response in "message" acknowledging their skin type (e.g., "Got it, dry skin! Let's find products that deeply hydrate and restore your skin barrier.").
-   - In "suggestions", provide 3-4 sample skin concerns they might have (e.g. ["Acne", "Dark Spots", "Aging", "Redness"]).
-3. If their message is unclear or unrelated to skin type:
-   - Keep "skinType" as ""
-   - In "message", warmly ask them how their skin feels or what skin type they have.
+   - Write a friendly 1-2 sentence response in "message" acknowledging their skin type (e.g. "Got it, dry skin! Let's find products that deeply hydrate and restore your skin barrier.").
+   - In "suggestions", provide 3-4 skin concerns they might want to address next (e.g. ["Acne & Blemishes", "Dark Spots", "Anti-Aging", "Redness"]).
+2. If the user's message is a greeting (e.g., "hi", "hello"), vague, or does not indicate skin type yet:
+   - Set "skinType" to ""
+   - In "message", warmly greet them and ask how their skin feels or what skin type they have.
    - In "suggestions", provide ["Oily", "Dry", "Combination", "Normal", "Sensitive"].
 
-Respond strictly with valid JSON (no markdown, no backticks):
+CRITICAL: You MUST ALWAYS respond in pure JSON format matching this schema:
 {
-  "message": "...",
+  "message": "string",
   "skinType": "dry" | "oily" | "combination" | "sensitive" | "normal" | "",
-  "suggestions": ["suggestion 1", "suggestion 2"]
+  "suggestions": ["string"]
+}
+
+Example 1 (User Greeting):
+User: "Hello"
+Response:
+{
+  "message": "Hello! I'm your DayStar AI Skincare Consultant. How does your skin feel throughout the day?",
+  "skinType": "",
+  "suggestions": ["Oily", "Dry", "Combination", "Normal", "Sensitive"]
+}
+
+Example 2 (User describes skin):
+User: "My forehead is shiny and oily but my cheeks are dry"
+Response:
+{
+  "message": "That describes combination skin! Let's build a balanced routine to hydrate your cheeks while controlling T-zone shine.",
+  "skinType": "combination",
+  "suggestions": ["Acne & Blemishes", "Enlarged Pores", "Hyperpigmentation", "Dullness"]
 }`;
 }
 
@@ -66,7 +83,7 @@ function detectSkinTypeKeyword(text: string): string {
   if (lower.includes('combination') || lower.includes('t-zone') || lower.includes('t zone')) return 'combination';
   if (lower.includes('dry') || lower.includes('tight') || lower.includes('flak')) return 'dry';
   if (lower.includes('oily') || lower.includes('greas') || lower.includes('shiny all over')) return 'oily';
-  if (lower.includes('sensitive') || lower.includes('stings') || lower.includes('irritat')) return 'sensitive';
+  if (lower.includes('sensitive') || lower.includes('stings') || lower.includes('irritat') || lower.includes('redness')) return 'sensitive';
   if (lower.includes('normal') || lower.includes('balanced')) return 'normal';
   return '';
 }
@@ -102,23 +119,26 @@ export class AiQuizService {
       };
     }
 
+    // Build conversation messages array
+    const rawMessages = Array.isArray(dto?.messages)
+      ? dto.messages
+      : Array.isArray((dto as any)?.body?.messages)
+        ? (dto as any).body.messages
+        : [];
+
+    const conversationMessages: GroqChatMessage[] = rawMessages
+      .filter((m) => m && typeof m.content === 'string' && m.content.trim() !== '')
+      .map((m) => ({
+        role: (m.role === 'assistant' || (m as any).sender === 'ai'
+          ? 'assistant'
+          : 'user') as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+    const latestUserMsg = conversationMessages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
+    const fallbackType = detectSkinTypeKeyword(latestUserMsg);
+
     try {
-      // Build conversation messages array
-      const rawMessages = Array.isArray(dto?.messages)
-        ? dto.messages
-        : Array.isArray((dto as any)?.body?.messages)
-          ? (dto as any).body.messages
-          : [];
-
-      const conversationMessages: GroqChatMessage[] = rawMessages
-        .filter((m) => m && typeof m.content === 'string' && m.content.trim() !== '')
-        .map((m) => ({
-          role: (m.role === 'assistant' || (m as any).sender === 'ai'
-            ? 'assistant'
-            : 'user') as 'user' | 'assistant',
-          content: m.content,
-        }));
-
       // System prompt focused strictly on skin type
       const systemPrompt = buildSkinTypePrompt(currentSkinType);
 
@@ -137,9 +157,6 @@ export class AiQuizService {
       console.log('🤖 [AiQuizService] Groq Raw Response:', JSON.stringify(parsed, null, 2));
 
       // Resolve skin type: LLM parsed value -> fallback keyword matcher -> current value
-      const latestUserMsg = conversationMessages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
-      const fallbackType = detectSkinTypeKeyword(latestUserMsg);
-
       const detectedSkinType = parsed.skinType || fallbackType || currentSkinType;
 
       const mergedProfile = {
@@ -153,23 +170,36 @@ export class AiQuizService {
       console.log('📤 [AiQuizService] Returning Merged Profile:', JSON.stringify(mergedProfile, null, 2));
 
       return {
-        message: parsed.message || (detectedSkinType ? `Got it, ${detectedSkinType} skin!` : "What is your skin type?"),
+        message: parsed.message || (detectedSkinType ? `Got it, ${detectedSkinType} skin!` : "Could you tell me how your skin feels or what skin type you have?"),
         extractedProfile: mergedProfile,
-        suggestions: parsed.suggestions || ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'],
+        suggestions: parsed.suggestions && parsed.suggestions.length > 0
+          ? parsed.suggestions
+          : (detectedSkinType
+            ? ['Acne & Blemishes', 'Dark Spots', 'Anti-Aging', 'Dryness']
+            : ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive']),
         isComplete: Boolean(detectedSkinType),
       };
     } catch (err) {
       this.logger.error('Error in Groq AI processChat:', err);
+
+      // Fallback gracefully so the user experience is never interrupted
+      const detectedSkinType = fallbackType || currentSkinType;
+      const mergedProfile = {
+        skinType: detectedSkinType,
+        concerns: currentConcerns,
+        sensitivity: currentSensitivity,
+        goals: currentGoals,
+      };
+
       return {
-        message: `⚠️ Groq AI Request Failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please verify backend network connectivity and your GROQ_API_KEY.`,
-        extractedProfile: {
-          skinType: currentSkinType,
-          concerns: currentConcerns,
-          sensitivity: currentSensitivity,
-          goals: currentGoals,
-        },
-        suggestions: ['Retry'],
-        isComplete: false,
+        message: detectedSkinType
+          ? `Got it, looks like you have ${detectedSkinType} skin! What are your primary skin concerns?`
+          : "I'm ready to help! Could you describe how your skin feels (e.g. oily, dry, normal, sensitive, or combination)?",
+        extractedProfile: mergedProfile,
+        suggestions: detectedSkinType
+          ? ['Acne & Blemishes', 'Dark Spots', 'Anti-Aging', 'Hydration']
+          : ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'],
+        isComplete: Boolean(detectedSkinType),
       };
     }
   }

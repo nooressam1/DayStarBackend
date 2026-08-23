@@ -141,16 +141,47 @@ export class GroqService {
 
   /**
    * Convenience wrapper: send messages and parse the response as JSON.
-   * Automatically enables jsonMode.
+   * Automatically enables jsonMode and handles markdown fences/validation failures gracefully.
    */
   async chatCompletionJson<T = unknown>(
     messages: GroqChatMessage[],
     options: GroqChatOptions = {},
   ): Promise<T> {
-    const text = await this.chatCompletionText(messages, {
-      ...options,
-      jsonMode: true,
-    });
-    return JSON.parse(text) as T;
+    try {
+      const text = await this.chatCompletionText(messages, {
+        ...options,
+        jsonMode: true,
+      });
+      const cleaned = text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      return JSON.parse(cleaned) as T;
+    } catch (err: unknown) {
+      const errMessage = (err as Error)?.message || '';
+      // Try to recover if Groq returned json_validate_failed with failed_generation in error payload
+      const match = errMessage.match(/"failed_generation"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (match && match[1]) {
+        try {
+          const unescaped = JSON.parse(`"${match[1]}"`);
+          const cleaned = unescaped
+            .trim()
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+          return JSON.parse(cleaned) as T;
+        } catch {
+          // If the failed generation was plain conversational text, wrap it into a message object
+          try {
+            const rawText = JSON.parse(`"${match[1]}"`);
+            return { message: rawText } as unknown as T;
+          } catch {
+            return { message: match[1] } as unknown as T;
+          }
+        }
+      }
+      throw err;
+    }
   }
 }
