@@ -130,6 +130,11 @@ export class RoutineAssemblerService {
         const grouped: Record<string, StepBuckets> = {};
 
         for (const product of products || []) {
+            // Only include active products that have at least one variant available for purchase
+            if (!product.is_active || !product.variants || product.variants.length === 0) {
+                continue;
+            }
+
             const step = (product.step_type || '').toLowerCase();
             const ingredients = ingredientsByProduct[product.id] || [];
             const withIngredients: ProductWithIngredients = { ...product, ingredients };
