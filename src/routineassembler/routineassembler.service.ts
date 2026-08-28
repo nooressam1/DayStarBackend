@@ -119,7 +119,7 @@ export class RoutineAssemblerService {
     async getProductsGroupedByStepAndSensitivity(): Promise<Record<string, StepBuckets>> {
         const { data: products, error } = await this.supabaseService.admin
             .from('product')
-            .select('*');
+            .select('*, variants ( id, sku, stock, size )');
 
         if (error) throw error;
 

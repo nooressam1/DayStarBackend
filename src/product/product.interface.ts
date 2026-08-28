@@ -15,6 +15,7 @@ export interface Product {
   discount_percentage?: number | null;
   rating?: number;
   reviews_count?: number;
+  variants?: Variant[];
 }
 
 export interface Variant {
