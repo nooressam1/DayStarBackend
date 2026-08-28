@@ -36,8 +36,8 @@ export class QuizController {
         console.log("testing profile", profile);
 
         const savedProfile = await this.skinProfileService.create(profile);
-        const routine = await this.routineAssembler.assembleRoutine(savedProfile);
+        const fullRoutine = await this.routineAssembler.assembleFullRoutine(savedProfile);
 
-        return routine;
+        return fullRoutine;
     }
 }

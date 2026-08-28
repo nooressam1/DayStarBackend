@@ -14,4 +14,8 @@ export class QuizAnswersDto {
     @IsOptional()
     @IsString()
     sunExposure?: string;
+
+    @IsOptional()
+    @IsString()
+    time?: string;
 }
