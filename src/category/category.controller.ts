@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { category } from './category.interface';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -9,8 +9,12 @@ export class categoryController {
     constructor(private readonly catergoryService: CategoryService) { }
 
     @Get('')
-    async getCategories(): Promise<category[]> {
-        return this.catergoryService.getCategories();
+    async getCategories(
+        @Query('all') all?: string,
+        @Query('includeInactive') includeInactive?: string,
+    ): Promise<category[]> {
+        const showAll = ['true', '1', true].includes(all as any) || ['true', '1', true].includes(includeInactive as any);
+        return this.catergoryService.getCategories(showAll);
     }
 
     @Get(':id')

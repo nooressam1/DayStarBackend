@@ -32,11 +32,17 @@ export class CategoryService {
         private readonly supabaseService: SupabaseService,
     ) { }
 
-    async getCategories(): Promise<category[]> {
+    async getCategories(includeInactive = false): Promise<category[]> {
         try {
-            const { data, error } = await this.supabaseService.admin
+            let query = this.supabaseService.admin
                 .from('category')
                 .select('*');
+
+            if (!includeInactive) {
+                query = query.or('status.eq.true,status.eq.Active,status.is.null');
+            }
+
+            const { data, error } = await query;
             if (error) throw error;
             return (data || []).map(formatCategory);
         } catch (error) {
