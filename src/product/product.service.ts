@@ -133,17 +133,24 @@ export class ProductService {
       dataQuery = dataQuery.eq('is_active', true);
 
       // Storefront mode: Only show products belonging to Active categories (or uncategorized products)
-      const { data: activeCats } = await this.supabaseService.admin
+      const { data: allCats } = await this.supabaseService.admin
         .from('category')
-        .select('id')
-        .or('status.eq.true,status.eq.Active,status.is.null');
+        .select('id, status');
 
-      if (activeCats && activeCats.length > 0) {
-        const activeIds = activeCats.map((c) => c.id);
-        const inList = activeIds.join(',');
+      const activeCatIds = (allCats || [])
+        .filter((c) => {
+          if (c.status === undefined || c.status === null) return true;
+          if (typeof c.status === 'boolean') return c.status;
+          const s = String(c.status).toLowerCase().trim();
+          return s === 'active' || s === 'true';
+        })
+        .map((c) => c.id);
+
+      if (activeCatIds.length > 0) {
+        const inList = activeCatIds.join(',');
         countQuery = countQuery.or(`category_id.in.(${inList}),category_id.is.null`);
         dataQuery = dataQuery.or(`category_id.in.(${inList}),category_id.is.null`);
-      } else {
+      } else if (allCats && allCats.length > 0) {
         countQuery = countQuery.is('category_id', null);
         dataQuery = dataQuery.is('category_id', null);
       }

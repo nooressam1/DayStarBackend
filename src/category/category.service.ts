@@ -34,19 +34,22 @@ export class CategoryService {
 
     async getCategories(includeInactive = false): Promise<category[]> {
         try {
-            let query = this.supabaseService.admin
+            const { data, error } = await this.supabaseService.admin
                 .from('category')
                 .select('*');
 
-            if (!includeInactive) {
-                query = query.or('status.eq.true,status.eq.Active,status.is.null');
+            if (error) throw error;
+
+            const allCategories = (data || []).map(formatCategory);
+
+            if (includeInactive) {
+                return allCategories;
             }
 
-            const { data, error } = await query;
-            if (error) throw error;
-            return (data || []).map(formatCategory);
-        } catch (error) {
-            throw new InternalServerErrorException(error);
+            return allCategories.filter((cat) => (cat.status || 'Active') === 'Active');
+        } catch (error: any) {
+            console.error('Error in getCategories:', error);
+            throw new InternalServerErrorException(error?.message || 'Failed to fetch categories');
         }
     }
 
