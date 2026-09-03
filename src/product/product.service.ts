@@ -136,13 +136,16 @@ export class ProductService {
       const { data: activeCats } = await this.supabaseService.admin
         .from('category')
         .select('id')
-        .or('status.eq.Active,status.is.null');
+        .or('status.eq.true,status.eq.Active,status.is.null');
 
       if (activeCats && activeCats.length > 0) {
         const activeIds = activeCats.map((c) => c.id);
         const inList = activeIds.join(',');
         countQuery = countQuery.or(`category_id.in.(${inList}),category_id.is.null`);
         dataQuery = dataQuery.or(`category_id.in.(${inList}),category_id.is.null`);
+      } else {
+        countQuery = countQuery.is('category_id', null);
+        dataQuery = dataQuery.is('category_id', null);
       }
     }
 
