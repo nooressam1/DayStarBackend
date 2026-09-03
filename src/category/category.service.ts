@@ -98,6 +98,19 @@ export class CategoryService {
                 .single();
 
             if (error) throw error;
+
+            // When a category is marked inactive, automatically deactivate all products under this category
+            if (payload.status === false) {
+                const { error: prodError } = await this.supabaseService.admin
+                    .from('product')
+                    .update({ is_active: false })
+                    .eq('category_id', id);
+
+                if (prodError) {
+                    console.error(`Failed to deactivate products for inactive category ${id}:`, prodError);
+                }
+            }
+
             return formatCategory(data);
         } catch (error: any) {
             throw new InternalServerErrorException(error?.message || 'Failed to update category');
