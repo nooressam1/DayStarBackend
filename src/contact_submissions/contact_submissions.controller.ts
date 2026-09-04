@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ContactSubmissionsService } from './contact_submissions.service';
 import { ContactSubmission } from './contact_submissions.interface';
 import { CreateContactSubmissionDto, UpdateContactSubmissionDto } from './contact_submissionsDTO';
@@ -7,6 +8,7 @@ import { CreateContactSubmissionDto, UpdateContactSubmissionDto } from './contac
 export class ContactSubmissionsController {
     constructor(private readonly contactSubmissionsService: ContactSubmissionsService) { }
 
+    @Throttle({ default: { limit: 3, ttl: 60000 } })
     @Post()
     async create(
         @Body() dto: CreateContactSubmissionDto,

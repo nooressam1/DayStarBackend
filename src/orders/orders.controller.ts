@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards, Get, Param, Patch, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CheckoutService } from './services/checkout.service';
 import { OrdersQueryService } from './services/orders-query.service';
 import { OrdersAdminService } from './services/orders-admin.service';
@@ -15,6 +16,7 @@ export class OrdersController {
     private readonly ordersAdminService: OrdersAdminService,
   ) {}
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('checkout')
   async checkout(
     @CurrentUser() user: any,
@@ -103,4 +105,16 @@ export class OrdersController {
     const userId = user.sub;
     return this.ordersQueryService.cancelOrder(orderId, userId);
   }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Patch(':orderid/refund')
+  async refundOrder(
+    @CurrentUser() user: any,
+    @Param('orderid') orderId: string,
+    @Body() body?: { reason?: string },
+  ) {
+    const userId = user.sub;
+    return this.ordersQueryService.refundOrder(orderId, userId, body?.reason);
+  }
 }
+

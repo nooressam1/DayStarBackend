@@ -24,9 +24,17 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { JobsModule } from './jobs/jobs.module';
 import { GroqModule } from './groq/groq.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'; // <-- 1. Import Throttler
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 60 seconds (1 minute window)
+        limit: 60,  // Max 60 requests per minute for normal routes
+      },
+    ]),
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: envValidationSchema,
@@ -46,6 +54,9 @@ import { GroqModule } from './groq/groq.module';
     GroqModule,
   ],
   controllers: [ProductController, discountController, categoryController, ContactSubmissionsController, CustomersController],
-  providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService, CustomersService],
+  providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService, CustomersService, {
+    provide: APP_GUARD,
+    useClass: ThrottlerGuard,
+  },],
 })
 export class AppModule { }

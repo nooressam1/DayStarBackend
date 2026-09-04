@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Query, Post, Patch, Body, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ProductService } from './product.service';
 import { Product, Variant, Review } from './product.interface';
 import { ListProductsDto } from './dto/list_products.dto';
@@ -50,6 +51,7 @@ export class ProductController {
   async getReviews(@Param('id') id: string): Promise<Review[]> {
     return this.productService.getReviews(id);
   }
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post(':id/reviews')
   @UseGuards(SupabaseAuthGuard)
   async postReview(

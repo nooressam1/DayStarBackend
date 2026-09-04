@@ -164,7 +164,10 @@ export class OrdersQueryService {
     if (order.user_id !== userID) {
       throw new BadRequestException('Access denied.');
     }
-    const currentStatus = order.order_status || (order as Record<string, unknown>).status;
+    const currentStatus = ((order.order_status || (order as Record<string, unknown>).status) as string || '').toLowerCase();
+    if (currentStatus === 'delivered' || currentStatus === 'refunded') {
+      throw new BadRequestException(`Cannot cancel order because it is already '${currentStatus}'.`);
+    }
     if (currentStatus !== 'pending') {
       throw new BadRequestException(`Cannot cancel order because it is already '${currentStatus}'.`);
     }
@@ -189,4 +192,56 @@ export class OrdersQueryService {
       },
     };
   }
+
+  async refundOrder(orderID: string, userID: string, reason?: string) {
+    const client: SupabaseClient = this.supabaseService.admin;
+    const { data: order, error: OrderError } = await client
+      .from('orders')
+      .select('id, order_status, user_id, payment_status')
+      .eq('id', orderID)
+      .single();
+
+    if (OrderError || !order) {
+      throw new BadRequestException('Order Not found');
+    }
+    if (order.user_id !== userID) {
+      throw new BadRequestException('Access denied.');
+    }
+    const currentStatus = ((order.order_status || (order as Record<string, unknown>).status) as string || '').toLowerCase();
+    if (currentStatus === 'refunded') {
+      throw new BadRequestException('Order has already been refunded.');
+    }
+    if (currentStatus !== 'delivered') {
+      throw new BadRequestException(`Cannot refund order because it is '${currentStatus}'. Refunds are only available for delivered orders.`);
+    }
+
+    const payload: { order_status: string; payment_status: string; cancel_reason?: string } = {
+      order_status: 'refunded',
+      payment_status: 'refunded',
+    };
+    if (reason) {
+      payload.cancel_reason = reason;
+    }
+
+    const { data: updateOrder, error: UpdateError } = await client
+      .from('orders')
+      .update(payload)
+      .eq('id', orderID)
+      .select()
+      .single();
+
+    if (UpdateError || !updateOrder) {
+      throw new BadRequestException('Failed to process refund for the order');
+    }
+
+    return {
+      success: true,
+      message: 'Order refunded successfully',
+      order: {
+        ...updateOrder,
+        status: updateOrder.order_status,
+      },
+    };
+  }
 }
+
