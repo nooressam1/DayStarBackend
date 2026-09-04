@@ -217,7 +217,7 @@ export class OrdersQueryService {
 
     const payload: { order_status: string; payment_status: string } = {
       order_status: 'refunded',
-      payment_status: 'refunded',
+      payment_status: 'REFUNDED',
     };
 
     const { data: updateOrder, error: UpdateError } = await client

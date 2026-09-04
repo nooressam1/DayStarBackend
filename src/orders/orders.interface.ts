@@ -1,20 +1,17 @@
 export interface Order {
   id: string;
-  order_number: number;
+  created_at: string;
   user_id: string;
   address_id: string;
   order_status: string;
-  status?: string;
   total: number;
-  discount_amount?: number;
+  order_number: number;
+  discount_amount?: number | null;
   discount_id?: number | null;
-  payment_method?: string;
-  payment_status?: string;
-  full_name?: string;
-  phone_number?: string;
-  cancel_reason?: string;
-  created_at: string;
-  updated_at?: string;
+  phone_number?: number | string | null;
+  full_name?: string | null;
+  payment_status?: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | string | null;
+  payment_method?: string | null;
 }
 
 export interface OrderItemPayload {

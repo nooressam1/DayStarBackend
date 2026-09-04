@@ -387,9 +387,8 @@ export class CheckoutService {
       ...insertedOrder,
       payment_method: resolvedPaymentMethod,
       payment_status: (insertedOrder.payment_status as string) || paymentStatus,
-      status: resolvedStatus,
       order_status: resolvedStatus,
-    } as Order;
+    } as unknown as Order;
   }
 
   private async createOrderItems(
