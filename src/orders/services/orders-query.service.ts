@@ -215,13 +215,10 @@ export class OrdersQueryService {
       throw new BadRequestException(`Cannot refund order because it is '${currentStatus}'. Refunds are only available for delivered orders.`);
     }
 
-    const payload: { order_status: string; payment_status: string; cancel_reason?: string } = {
+    const payload: { order_status: string; payment_status: string } = {
       order_status: 'refunded',
       payment_status: 'refunded',
     };
-    if (reason) {
-      payload.cancel_reason = reason;
-    }
 
     const { data: updateOrder, error: UpdateError } = await client
       .from('orders')
@@ -231,7 +228,8 @@ export class OrdersQueryService {
       .single();
 
     if (UpdateError || !updateOrder) {
-      throw new BadRequestException('Failed to process refund for the order');
+      console.error('Failed to process refund error:', UpdateError);
+      throw new BadRequestException(`Failed to process refund: ${UpdateError?.message || 'Unknown error'}`);
     }
 
     return {
@@ -244,4 +242,5 @@ export class OrdersQueryService {
     };
   }
 }
+
 

@@ -215,10 +215,7 @@ export class OrdersAdminService {
       throw new BadRequestException('Order not found.');
     }
 
-    const payload: { order_status: string; cancel_reason?: string } = { order_status: status };
-    if (reason) {
-      payload.cancel_reason = reason;
-    }
+    const payload: { order_status: string } = { order_status: status };
 
     const { data: updatedOrder, error: updateError } = await client
       .from('orders')
@@ -228,7 +225,8 @@ export class OrdersAdminService {
       .single();
 
     if (updateError || !updatedOrder) {
-      throw new BadRequestException('Failed to update order status.');
+      console.error('Failed to update order status:', updateError);
+      throw new BadRequestException(`Failed to update order status: ${updateError?.message || 'Unknown error'}`);
     }
 
     return {
