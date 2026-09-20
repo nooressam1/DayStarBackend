@@ -211,6 +211,25 @@ export class ProductService {
       reviews_count: Number(p.reviews_count) || 0,
     }));
   }
+  async getNewArrivals(limit = 4): Promise<Product[]> {
+    const { data: newest, error } = await this.supabaseService.admin
+      .from('product')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching new arrivals:', error);
+      return [];
+    }
+
+    return (newest ?? []).map((p: any) => ({
+      ...p,
+      rating: Number(p.rating) || 0,
+      reviews_count: Number(p.reviews_count) || 0,
+    })) as Product[];
+  }
 
   async getReviews(productId: string): Promise<Review[]> {
     const { data, error } = await this.supabaseService.admin
@@ -470,7 +489,7 @@ export class ProductService {
 
       for (const variantDto of variants) {
         const isUuid = Boolean(variantDto.id && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(variantDto.id));
-        
+
         let existingVariant: any = null;
         if (isUuid && existingMapById.has(variantDto.id!)) {
           existingVariant = existingMapById.get(variantDto.id!);
