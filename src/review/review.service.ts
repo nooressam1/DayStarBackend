@@ -1,4 +1,4 @@
-﻿import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Review } from './review.interface';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -18,17 +18,22 @@ export class ReviewService {
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw new InternalServerErrorException(Failed to fetch reviews: );
+      throw new InternalServerErrorException(`Failed to fetch reviews: ${error.message}`);
     }
 
-    return (data || []) as Review[];
+    return (data || []).map((r: any) => ({
+      ...r,
+      username: Array.isArray(r.profile)
+        ? r.profile[0]?.username
+        : r.profile?.username || 'Anonymous',
+    })) as unknown as Review[];
   }
 
   // 2. Get featured text reviews for testimonials
   async getFeaturedReviews(limit = 10): Promise<Review[]> {
     const { data, error } = await this.supabaseService.admin
       .from('review')
-      .select(
+      .select(`
         id,
         product_id,
         user_id,
@@ -41,7 +46,7 @@ export class ReviewService {
         timestamp,
         profile:user_id ( username ),
         product:product_id ( name, slug )
-      )
+      `)
       .not('body', 'is', null)
       .neq('body', '')
       .gte('rating', 4)
@@ -53,7 +58,15 @@ export class ReviewService {
       return [];
     }
 
-    return (data || []) as Review[];
+    return (data || []).map((r: any) => ({
+      ...r,
+      username: Array.isArray(r.profile)
+        ? r.profile[0]?.username
+        : r.profile?.username || 'Verified Customer',
+      product_name: Array.isArray(r.product)
+        ? r.product[0]?.name
+        : r.product?.name,
+    })) as unknown as Review[];
   }
 
   // 3. Create a review and update product stats
@@ -84,13 +97,13 @@ export class ReviewService {
       .single();
 
     if (error) {
-      throw new InternalServerErrorException(Failed to create review: );
+      throw new InternalServerErrorException(`Failed to create review: ${error.message}`);
     }
 
     // Recalculate and update rating & reviews_count on the product table
     await this.updateProductRatingStats(productId);
 
-    return data as Review;
+    return data as unknown as Review;
   }
 
   // 4. Update product rating stats on the product table
@@ -101,7 +114,7 @@ export class ReviewService {
       .eq('product_id', productId);
 
     if (error) {
-      this.logger.error(Failed to fetch reviews to update stats for product :, error);
+      this.logger.error(`Failed to fetch reviews to update stats for product ${productId}:`, error);
       return { rating: 0, reviews_count: 0 };
     }
 
@@ -119,7 +132,7 @@ export class ReviewService {
       .eq('id', productId);
 
     if (updateError) {
-      this.logger.error(Failed to update rating stats for product :, updateError);
+      this.logger.error(`Failed to update rating stats for product ${productId}:`, updateError);
     }
 
     return { rating: avgRating, reviews_count: reviewsCount };
