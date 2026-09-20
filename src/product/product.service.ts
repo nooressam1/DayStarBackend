@@ -191,7 +191,9 @@ export class ProductService {
   // in product.service.ts
   async getBestSellers(limit = 4): Promise<Product[]> {
     const { data, error } = await this.supabaseService.admin.rpc('get_best_sellers', { p_limit: limit });
-
+    if (error) {
+      console.error('get_best_sellers RPC failed:', error.message);
+    }
     if (error || !data || data.length === 0) {
       const { data: newest } = await this.supabaseService.admin
         .from('product')
