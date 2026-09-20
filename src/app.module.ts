@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { envValidationSchema } from './config/env.validation';
 import { SupabaseModule } from './supabase/supabase.module';
@@ -24,6 +24,7 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { JobsModule } from './jobs/jobs.module';
 import { GroqModule } from './groq/groq.module';
+import { ReviewModule } from './review/review.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'; // <-- 1. Import Throttler
 import { APP_GUARD } from '@nestjs/core';
 
@@ -52,6 +53,7 @@ import { APP_GUARD } from '@nestjs/core';
     FavoritesModule,
     JobsModule,
     GroqModule,
+    ReviewModule,
   ],
   controllers: [ProductController, discountController, categoryController, ContactSubmissionsController, CustomersController],
   providers: [ProductService, DiscountService, CategoryService, ContactSubmissionsService, CustomersService, {
